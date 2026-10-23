@@ -1,0 +1,23 @@
+[Unit]
+Description=Pawn Control chess broadcast desk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pawn
+Group=pawn
+WorkingDirectory=/opt/pawn-control
+EnvironmentFile=/opt/pawn-control/.env
+ExecStart=/usr/bin/node /opt/pawn-control/server.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pawn-control
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

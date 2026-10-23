@@ -1,0 +1,14 @@
+services:
+  pawn-control:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      DATA_DIR: /app/data
+    ports:
+      - "3000:3000"
+    volumes:
+      - pawn-data:/app/data
+volumes:
+  pawn-data:

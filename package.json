@@ -1,0 +1,9 @@
+{
+  "name": "pawn-control",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted chess stream overlay and broadcast desk",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": { "setup": "node setup.mjs", "start": "node server.mjs", "test": "node --test" }
+}
