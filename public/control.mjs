@@ -88,7 +88,7 @@ function renderSession() {
     box.append(top,count,bottom);host.append(box);
   }
   const history=$('history');history.replaceChildren();
-  if(!state.session.results.length)history.append(el('div','empty-state','The board is set. Record your first result.'));
+  if(!state.session.results.length)history.append(el('div','empty-state','No session games recorded. Use Record win / loss / draw above to populate streak, best session streak, win rate, and recent results. Chess.com refreshes update ratings, not these session results.'));
   for(const r of state.session.results.slice(-40).reverse()) {
     const row=el('div','history-row');row.append(el('span',`result-chip ${r.result}`,r.result==='win'?'W':r.result==='loss'?'L':'D'),el('time','',new Date(r.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})));
     const select=el('select');select.setAttribute('aria-label','Correct game result');
@@ -148,6 +148,7 @@ function renderTickerEditor() {
     row.append(head,text);host.append(row);
   });
   const options=$('ticker-options');options.replaceChildren();
+  options.append(el('p','small-note',`Current mode: ${state.ticker.mode==='scroll'?'Continuous scroll — all enabled messages travel across the ticker.':`Message rotation — one message at a time, changing every ${state.ticker.interval} seconds. Choose Continuous scroll for moving text.`}${state.ticker.paused?' Ticker is paused.':''}`));
   const defs=[['mode','Display mode','select',{items:[['rotate','Message rotation'],['scroll','Continuous scroll']]}],['interval','Rotation interval (seconds)','number',{min:5,max:300}],['speed','Scroll speed (px / second)','number',{min:20,max:300}],['gap','Separator spacing (px)','number',{min:0,max:300}],['pause','Pause between scroll cycles (seconds)','number',{min:0,max:30}],['direction','Scroll direction','select',{items:[['left','Left'],['right','Right']]}],['font','Font size at 1440p','number',{min:18,max:60}],['opacity','Background opacity (%)','number',{min:0,max:100}],['separator','Message separator','text',{maxlength:12}],['paused','Pause ticker','checkbox',{}]];
   for(const [key,label,type,opts] of defs)options.append(inputField(label,type,state.ticker[key],v=>change(s=>s.ticker[key]=v),opts));
   options.append(inputField('Show ticker','checkbox',state.widgets.ticker.visible,v=>change(s=>s.widgets.ticker.visible=v)));
