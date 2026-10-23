@@ -7,9 +7,10 @@ Wants=network-online.target
 Type=simple
 User=pawn
 Group=pawn
-WorkingDirectory=/opt/pawn-control
-EnvironmentFile=/opt/pawn-control/.env
-ExecStart=/usr/bin/node /opt/pawn-control/server.mjs
+WorkingDirectory=/opt/pawn_control
+Environment=DATA_DIR=/var/lib/pawn-control
+EnvironmentFile=/opt/pawn_control/.env
+ExecStart=/usr/bin/node /opt/pawn_control/server.mjs
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
