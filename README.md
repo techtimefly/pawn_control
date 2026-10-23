@@ -60,29 +60,41 @@ Official references: [Published-Data API](https://www.chess.com/news/view/publis
 
 Suggested starting allocation: unprivileged Debian/Ubuntu container, 1 vCPU, 512 MB–1 GB RAM, 4 GB disk, DHCP reservation or static LAN address. Install Node.js 24 LTS using your usual trusted package source and verify `node --version` is v24 or newer. Docker/nesting is not required.
 
-The repository is named `pawn_control`, but the service installs under `/opt/pawn-control`. The explicit destination in `git clone` below makes those paths match; do not rely on Git's default clone-directory name. Install Git and configure access to the private repository on the container first.
+The repository and installation directory use the same name: `pawn_control`. The service expects the checkout at `/opt/pawn_control`. Install Git and configure access to the private repository on the container first.
 
 As root inside the container, for a new installation:
 
 ```sh
-useradd --system --home /opt/pawn-control --shell /usr/sbin/nologin pawn
+useradd --system --home /opt/pawn_control --shell /usr/sbin/nologin pawn
 mkdir -p /opt /var/lib/pawn-control
-git clone git@github.com:techtimefly/pawn_control.git /opt/pawn-control
-cp /opt/pawn-control/.env.example /opt/pawn-control/.env
-# Edit /opt/pawn-control/.env with a 16+ character password, 24+ character token,
+git clone git@github.com:techtimefly/pawn_control.git /opt/pawn_control
+cp /opt/pawn_control/.env.example /opt/pawn_control/.env
+# Edit /opt/pawn_control/.env with a 16+ character password, 24+ character token,
 # and HOST=0.0.0.0. Generate random credentials with your password manager.
 # Set CHESS_USERNAME to your Chess.com username before first startup.
 # Set DATA_DIR=/var/lib/pawn-control.
 chown -R pawn:pawn /var/lib/pawn-control
-chown root:pawn /opt/pawn-control/.env
-chmod 640 /opt/pawn-control/.env
-cp /opt/pawn-control/deploy/pawn-control.service /etc/systemd/system/
+chown root:pawn /opt/pawn_control/.env
+chmod 640 /opt/pawn_control/.env
+cp /opt/pawn_control/deploy/pawn-control.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now pawn-control
 systemctl status pawn-control
 ```
 
-If you already cloned into a directory named `pawn_control`, that checkout is not automatically installed at `/opt/pawn-control`. Use the explicit clone destination above with an empty or absent destination, or deliberately update both `WorkingDirectory` and `ExecStart` in the service file to match your existing checkout. Preserve any existing `.env` and data when changing installation paths. The commands above are for first installation, not upgrades.
+The unit remains named `pawn-control.service`, and persistent data stays at `/var/lib/pawn-control`. Only the checkout path uses the underscore. `WorkingDirectory`, `EnvironmentFile`, and `ExecStart` all point to `/opt/pawn_control`. The service defaults DATA_DIR to `/var/lib/pawn-control`; keep that value in `.env` too, since EnvironmentFile values take precedence.
+
+For an existing installation already at `/opt/pawn_control`, update the installed service after pulling:
+
+```sh
+git -C /opt/pawn_control pull --ff-only
+cp /opt/pawn_control/deploy/pawn-control.service /etc/systemd/system/pawn-control.service
+systemctl daemon-reload
+systemctl restart pawn-control
+systemctl status pawn-control
+```
+
+If your checkout is elsewhere, adjust all three service paths before installing it. If migrating from `/opt/pawn-control`, preserve its `.env` and continue using the existing `/var/lib/pawn-control` data directory. Do not rerun first-install commands over an existing configuration.
 
 The service uses `/usr/bin/node`; adjust ExecStart if your Node installation differs. Logs: `journalctl -u pawn-control -f`. Health: `curl http://127.0.0.1:3000/health`. Keep LAN access restricted to trusted devices. For remote use, prefer your VPN. HTTP passwords are visible to observers on the network; use a TLS reverse proxy if the LAN is not trusted. Set COOKIE_SECURE=true when serving through HTTPS. A proxy must forward SSE without buffering and permit long-lived connections.
 
