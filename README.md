@@ -60,12 +60,14 @@ Official references: [Published-Data API](https://www.chess.com/news/view/publis
 
 Suggested starting allocation: unprivileged Debian/Ubuntu container, 1 vCPU, 512 MB–1 GB RAM, 4 GB disk, DHCP reservation or static LAN address. Install Node.js 24 LTS using your usual trusted package source and verify `node --version` is v24 or newer. Docker/nesting is not required.
 
-As root inside the container:
+The repository is named `pawn_control`, but the service installs under `/opt/pawn-control`. The explicit destination in `git clone` below makes those paths match; do not rely on Git's default clone-directory name. Install Git and configure access to the private repository on the container first.
+
+As root inside the container, for a new installation:
 
 ```sh
 useradd --system --home /opt/pawn-control --shell /usr/sbin/nologin pawn
-mkdir -p /opt/pawn-control /var/lib/pawn-control
-# Copy this project into /opt/pawn-control, excluding any local data directory.
+mkdir -p /opt /var/lib/pawn-control
+git clone git@github.com:techtimefly/pawn_control.git /opt/pawn-control
 cp /opt/pawn-control/.env.example /opt/pawn-control/.env
 # Edit /opt/pawn-control/.env with a 16+ character password, 24+ character token,
 # and HOST=0.0.0.0. Generate random credentials with your password manager.
@@ -80,6 +82,8 @@ systemctl enable --now pawn-control
 systemctl status pawn-control
 ```
 
+If you already cloned into a directory named `pawn_control`, that checkout is not automatically installed at `/opt/pawn-control`. Use the explicit clone destination above with an empty or absent destination, or deliberately update both `WorkingDirectory` and `ExecStart` in the service file to match your existing checkout. Preserve any existing `.env` and data when changing installation paths. The commands above are for first installation, not upgrades.
+
 The service uses `/usr/bin/node`; adjust ExecStart if your Node installation differs. Logs: `journalctl -u pawn-control -f`. Health: `curl http://127.0.0.1:3000/health`. Keep LAN access restricted to trusted devices. For remote use, prefer your VPN. HTTP passwords are visible to observers on the network; use a TLS reverse proxy if the LAN is not trusted. Set COOKIE_SECURE=true when serving through HTTPS. A proxy must forward SSE without buffering and permit long-lived connections.
 
 Optional container image: `docker compose up -d --build` after configuring `.env` with HOST=0.0.0.0. The volume holds SQLite data; the image uses Node 24.
@@ -90,7 +94,7 @@ Optional container image: `docker compose up -d --build` after configuring `.env
 
 Commit `.env.example` with placeholders, never the real `.env`. The two application secrets are CONTROL_PASSWORD and OVERLAY_TOKEN. Generate them on the LXC with `npm run setup`, or supply them through the service environment. Chess.com public data needs no API key, and the Twitch channel link needs no Twitch token. Keep SSH deployment keys outside the project and never put them in browser code. If GitHub Actions deployment is added, store deployment credentials in GitHub Actions secrets, not repository files.
 
-The ignore rules exclude `.env` variants (except `.env.example`), runtime data, databases, logs, and common private-key files. The Docker build context excludes these too. Ignore rules do not remove already tracked secrets; if a real credential is ever committed, rotate it and remove it from history as appropriate. Only the `pawn-control` project directory belongs in the repository; the sibling `work` directory contains disposable development fixtures and preview data.
+The ignore rules exclude `.env` variants (except `.env.example`), runtime data, databases, logs, and common private-key files. The Docker build context excludes these too. Ignore rules do not remove already tracked secrets; if a real credential is ever committed, rotate it and remove it from history as appropriate. Application files live at the repository root; development preview data and credentials must remain outside the repository.
 
 Include DATA_DIR and `.env` in protected Proxmox backups. SQLite uses WAL; stop the service for a manual file copy, or use a consistent container snapshot. The Settings export is a portable settings/session backup, excluding credentials and API cache. Import validates and replaces settings/session, leaving credentials unchanged. Saved layouts include appearance and widget configuration, not scores. Keep tokens out of screenshots and source control. Rotate the overlay token in `.env` and restart if leaked.
 
