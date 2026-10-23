@@ -5,3 +5,4 @@
 .session-side{min-width:0}.mini-preview,.ticker-preview-wrap{width:100%;min-width:0}
 @media(max-width:950px){.session-grid,.two-column{grid-template-columns:minmax(0,1fr)}.session-side{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.session-side{grid-template-columns:minmax(0,1fr)}}
+.ticker-window{min-width:0}.ticker-line:not(.ticker-rotation){display:inline-flex;align-items:center}.ticker-group{display:inline-flex;align-items:center;flex:none;white-space:nowrap}.ticker-message,.ticker-separator{flex:none}
