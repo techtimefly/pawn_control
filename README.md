@@ -54,6 +54,8 @@ Official references: [Published-Data API](https://www.chess.com/news/view/publis
 
 ## Ticker tokens
 
+New installations default to continuous scrolling. Existing installations retain their saved mode: select **CTA ticker → Display mode → Continuous scroll** for moving text and make sure **Pause ticker** is unchecked. Message rotation shows one CTA at a time, changing every configured interval (25 seconds by default).
+
 `{username}`, `{channel}`, `{wins}`, `{losses}`, `{draws}`, `{streak}`, `{blitz_rating}`, `{rapid_rating}`, `{bullet_rating}`, `{blitz_goal}`, `{rapid_goal}`, `{bullet_goal}`. A message with an unavailable rating is skipped. Unknown tokens remain visible so they can be corrected. No enabled/usable messages means the ticker hides. All messages are plain text, never HTML.
 
 ## Proxmox LXC deployment
