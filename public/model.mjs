@@ -1,7 +1,7 @@
 export const MODES = ['blitz', 'rapid', 'bullet'];
 export const FIELDS = {
   username: ['♛', 'Player'], blitz: ['ϟ', 'Blitz'], rapid: ['◷', 'Rapid'], bullet: ['↗', 'Bullet'],
-  session: ['♜', 'Session'], streak: ['♨', 'Streak'], bestStreak: ['★', 'Best streak'],
+  session: ['♜', 'Session'], streak: ['♨', 'Session streak'], bestStreak: ['★', 'Best session streak'],
   winRate: ['%', 'Session win rate'], delta: ['↗', 'Rating change'], best: ['♛', 'Personal best'],
   goal: ['◎', 'Rating goal'], recent: ['▦', 'Session results'], timer: ['◷', 'Session time'],
   form: ['▤', 'Recent form'], whiteRate: ['♙', 'White win rate'], blackRate: ['♟', 'Black win rate'],
@@ -27,7 +27,7 @@ export function defaults() {
       ticker: { x: 70, y: 1350, w: 2420, h: 60, scale: 1, visible: true, locked: false, z: 1 }
     },
     layoutLocked: false, snap: true,
-    ticker: { mode: 'rotate', interval: 25, speed: 100, gap: 40, pause: 2, direction: 'left', paused: false, font: 28, opacity: 95, separator: '♟', messages: [
+    ticker: { mode: 'scroll', interval: 25, speed: 100, gap: 40, pause: 2, direction: 'left', paused: false, font: 28, opacity: 95, separator: '♟', messages: [
       { id: 'follow', text: 'Enjoying the games? Follow {channel} on Twitch!', enabled: true },
       { id: 'notify', text: 'Follow and enable notifications for the next stream.', enabled: true },
       { id: 'session', text: 'Today: {wins}W · {losses}L · {draws}D', enabled: true },
