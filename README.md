@@ -62,6 +62,16 @@ Suggested starting allocation: unprivileged Debian/Ubuntu container, 1 vCPU, 512
 
 The repository and installation directory use the same name: `pawn_control`. The service expects the checkout at `/opt/pawn_control`. Install Git and configure access to the private repository on the container first.
 
+Before installing the unit, verify the system-wide runtime:
+
+```sh
+command -v node
+node --version
+/usr/bin/node --version
+```
+
+The service requires Node.js 24+ at `/usr/bin/node`. If Node exists elsewhere (for example `/usr/local/bin/node`), set `ExecStart` to that absolute path before copying the unit. A root-only nvm installation under `/root` is not accessible to the `pawn` service with `ProtectHome=true`; install Node system-wide instead. If no Node executable is found, install Node.js 24 LTS from a trusted distribution source or the [official Node downloads](https://nodejs.org/en/download) before continuing.
+
 As root inside the container, for a new installation:
 
 ```sh
@@ -82,7 +92,7 @@ systemctl enable --now pawn-control
 systemctl status pawn-control
 ```
 
-The unit remains named `pawn-control.service`, and persistent data stays at `/var/lib/pawn-control`. Only the checkout path uses the underscore. `WorkingDirectory`, `EnvironmentFile`, and `ExecStart` all point to `/opt/pawn_control`. The service defaults DATA_DIR to `/var/lib/pawn-control`; keep that value in `.env` too, since EnvironmentFile values take precedence.
+The unit remains named `pawn-control.service`, and persistent data stays at `/var/lib/pawn-control`. `StateDirectory=pawn-control` creates that directory at service startup with ownership for `pawn`, before filesystem sandboxing is applied. Only the checkout path uses the underscore. `WorkingDirectory`, `EnvironmentFile`, and `ExecStart` all point to `/opt/pawn_control`. The service defaults DATA_DIR to `/var/lib/pawn-control`; keep that value in `.env` too, since EnvironmentFile values take precedence.
 
 For an existing installation already at `/opt/pawn_control`, update the installed service after pulling:
 
@@ -99,6 +109,14 @@ If your checkout is elsewhere, adjust all three service paths before installing 
 The service uses `/usr/bin/node`; adjust ExecStart if your Node installation differs. Logs: `journalctl -u pawn-control -f`. Health: `curl http://127.0.0.1:3000/health`. Keep LAN access restricted to trusted devices. For remote use, prefer your VPN. HTTP passwords are visible to observers on the network; use a TLS reverse proxy if the LAN is not trusted. Set COOKIE_SECURE=true when serving through HTTPS. A proxy must forward SSE without buffering and permit long-lived connections.
 
 Optional container image: `docker compose up -d --build` after configuring `.env` with HOST=0.0.0.0. The volume holds SQLite data; the image uses Node 24.
+
+### Startup troubleshooting
+
+- `226/NAMESPACE` mentioning a missing `/var/lib/pawn-control`: update the installed unit to the version with `StateDirectory=pawn-control`, then reload systemd. For older units, create it with `install -d -o pawn -g pawn -m 0750 /var/lib/pawn-control`.
+- `203/EXEC` and `Unable to locate executable '/usr/bin/node'`: Node is missing at the configured path. Check `command -v node`, install Node 24+ system-wide if necessary, or update `ExecStart` to the real system-wide executable. This error happens before application code runs.
+- After correcting the unit/runtime, use `systemctl daemon-reload`, `systemctl reset-failed pawn-control`, `systemctl restart pawn-control`, then `journalctl -u pawn-control -n 50 --no-pager`.
+
+`StateDirectory` behavior is documented in [systemd.exec](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#RuntimeDirectory=).
 
 ## Backups and maintenance
 
