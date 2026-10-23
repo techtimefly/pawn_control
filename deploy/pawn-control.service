@@ -7,6 +7,8 @@ Wants=network-online.target
 Type=simple
 User=pawn
 Group=pawn
+StateDirectory=pawn-control
+StateDirectoryMode=0750
 WorkingDirectory=/opt/pawn_control
 Environment=DATA_DIR=/var/lib/pawn-control
 EnvironmentFile=/opt/pawn_control/.env
