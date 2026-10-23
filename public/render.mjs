@@ -1,3 +1,4 @@
+import { createTicker } from './ticker.mjs';
 import { FIELDS, rating, totals, streaks, elapsed, clock, tickerMessages, historyStats } from './model.mjs';
 export const el=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; };
 const rgba=(hex,opacity)=>`${hex}${Math.round(opacity/100*255).toString(16).padStart(2,'0')}`;
@@ -64,28 +65,7 @@ export function renderCanvas(canvas,s,{editor=false}={}) {
   }
 }
 function renderTicker(wrapper,s) {
-  const messages=tickerMessages(s), t=s.ticker, key=JSON.stringify([messages,t,s.widgets.ticker.w,s.widgets.ticker.h,s.theme]);
-  if(wrapper.dataset.tickerKey===key) return;
-  wrapper.dataset.tickerKey=key;
-  clearInterval(wrapper._rotation); wrapper._animation?.cancel(); wrapper.replaceChildren();
-  if(!messages.length) return;
-  const surface=el('div','ticker-surface'); surface.style.background=rgba(s.theme.background,t.opacity); surface.style.fontSize=`${t.font}px`;
-  const tag=el('span','ticker-tag',s.channel.toUpperCase()); surface.append(tag);
-  const window=el('div','ticker-window'); surface.append(window); wrapper.append(surface);
-  const line=el('span','ticker-line'); window.append(line);
-  if(t.mode==='rotate') {
-    let index=0; line.textContent=messages[0]; line.classList.add('ticker-rotation');
-    if(!t.paused) wrapper._rotation=setInterval(()=>{index=(index+1)%messages.length; line.textContent=messages[index];},t.interval*1000);
-  } else {
-    messages.forEach((message,index)=>{if(index){const sep=el('span','ticker-separator',t.separator);sep.style.margin=`0 ${t.gap}px`;line.append(sep);}line.append(el('span','',message));});
-    requestAnimationFrame(()=>{
-      const distance=window.clientWidth+line.scrollWidth;
-      const travel=distance/t.speed*1000,total=travel+t.pause*1000;
-      const start=t.direction==='left'?window.clientWidth:-line.scrollWidth,end=t.direction==='left'?-line.scrollWidth:window.clientWidth;
-      const frames=[{transform:`translateX(${start}px)`,offset:0},{transform:`translateX(${end}px)`,offset:travel/total},{transform:`translateX(${end}px)`,offset:1}];
-      wrapper._animation=line.animate(frames,{duration:total,iterations:Infinity,easing:'linear'});
-      if(t.paused) wrapper._animation.pause();
-    });
-  }
+  if(!wrapper._ticker)wrapper._ticker=createTicker(wrapper);
+  wrapper._ticker.update(tickerMessages(s),s.ticker,s.channel,rgba(s.theme.background,s.ticker.opacity));
 }
 export function tickCanvas(canvas,s) { for(const e of canvas.querySelectorAll('[data-timer]')) e.textContent=clock(elapsed(s.session)); }
