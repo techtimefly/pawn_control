@@ -4,7 +4,7 @@ Verified on LV426 on October 24, 2026 with Node.js 24.19.0 from the bundled Code
 
 ## Automated checks
 
-- Full `node --test`: **45 passed, 0 failed** (29 existing tests plus 16 new tests).
+- Full `node --test`: **51 passed, 0 failed** (29 original tests plus 22 new tests).
 - `node --check` on every tracked/new JavaScript module: passed.
 - `git -c core.whitespace=cr-at-eol diff --check`: passed (repository contains mixed LF/CRLF files).
 - HTTP integration checks exercise login, cross-origin rejection, controller-only mutations, token read-only access, new static module routes, SSE and restart persistence.
@@ -16,8 +16,12 @@ The initial sandboxed suite could not connect to its loopback test server (`EACC
 
 ## Unrun checks and limitations
 
-Browser QA was attempted through the available browser automation tool; it reported no apps or browsers (`apps: [], browsers: []`). Consequently this branch has not had visual/browser interaction QA, narrow dock QA, or browser console verification. The HTTP and pure playback tests do not replace those checks. Before use, verify profile create/duplicate/switch, draft edits, cancelled/repeated Take Live, reload/reconnect, information/counter rendering, RSS scrolling/rotation and approval controls in a real browser.
+Browser QA was attempted through the available browser automation tool; it reported no apps or browsers (`apps: [], browsers: []`). A subsequent direct attempt to create an in-app browser tab also returned `Browser is not available: iab`. Consequently this branch has not had visual/browser interaction QA, narrow dock QA, or browser console verification. The HTTP and pure playback tests do not replace those checks. Before use, verify profile create/duplicate/switch, draft edits, cancelled/repeated Take Live, reload/reconnect, information/counter rendering, RSS scrolling/rotation and approval controls in a real browser.
 
 Real OBS, scene activation, transparency/readability, LAN/proxy behavior, Docker and Linux service deployment were not run. No deployment or external publication was performed. Previous branch browser/OBS-related notes are historical and are not a verification of this branch.
 
-Independent landscape/vertical layouts and an output-format selector are deferred. This branch retains one 2560 × 1440 landscape output and the existing 1080p preview. RSS playback clocks restart on source reload and are local to each source. Feed support is bounded UTF-8 RSS/Atom over standard HTTP/HTTPS; compressed/authenticated feeds are unsupported.
+Landscape 2560 × 1440 and vertical 1080 × 1920 now have independently saved layouts and a staged output-format selector. One format is live at a time; landscape retains the 1080p preview. No format requirement remains deferred. RSS playback clocks restart on source reload and are local to each source. Feed support is bounded UTF-8 RSS/Atom over standard HTTP/HTTPS; compressed/authenticated feeds are unsupported.
+
+## Independent output-format follow-up
+
+Six additional tests cover exact legacy landscape preservation and idempotent format migration, repeated switching without cross-layout changes, active/inactive canvas bounds, draft/published isolation, per-show isolation, preset/backup/template round trips, and SQLite restart persistence with a different editor/live format. The shared format dimensions drive layout editor bounds and pointer math, overlay canvas size, dedicated credits source size and credits/editor preview sizing. Visual rendering and OBS dimension changes still require manual verification; no UI/OBS pass is claimed.

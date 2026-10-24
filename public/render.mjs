@@ -1,5 +1,6 @@
 import { createTicker } from './ticker.mjs';
 import {createRSS} from './rss-render.mjs';
+import {canvasSize} from './formats.mjs';
 import {createCredits,createTips} from './bonus-render.mjs';
 import { FIELDS, rating, totals, streaks, elapsed, clock, tickerMessages, historyStats,WIDGET_IDS } from './model.mjs';
 export const el=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; };
@@ -18,6 +19,7 @@ export function statValues(s) {
   };
 }
 export function renderCanvas(canvas,s,{editor=false}={}) {
+  const {width,height}=canvasSize(s);canvas.style.width=`${width}px`;canvas.style.height=`${height}px`;
   canvas.style.setProperty('--accent',s.theme.accent); canvas.style.setProperty('--card-bg',rgba(s.theme.background,s.theme.opacity));
   canvas.style.setProperty('--ink',s.theme.foreground); canvas.style.setProperty('--quiet',s.theme.muted);
   canvas.style.setProperty('--streak',s.theme.streak); canvas.style.setProperty('--radius',`${s.theme.radius}px`);

@@ -14,7 +14,7 @@ test('authenticated actions persist; overlay is read-only; SSE delivers results'
       const response=await fetch(base+path);assert.equal(response.status,200);assert.match(await response.text(),/Control password/);
     }
     const credits=await fetch(base+'/credits');assert.equal(credits.status,200);assert.match(await credits.text(),/credits.mjs/);
-    for(const path of ['/bonus-model.mjs','/bonus-render.mjs','/bonus-controls.mjs','/credits.mjs','/credits-source.mjs','/studio-model.mjs','/studio-controls.mjs','/rss-render.mjs']){const response=await fetch(base+path);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/javascript/);}
+    for(const path of ['/bonus-model.mjs','/bonus-render.mjs','/bonus-controls.mjs','/credits.mjs','/credits-source.mjs','/formats.mjs','/studio-model.mjs','/studio-controls.mjs','/rss-render.mjs']){const response=await fetch(base+path);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/javascript/);}
     assert.equal((await post('/api/login',{password:'bad'})).status,401);
     const login=await post('/api/login',{password:config.password});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie').split(';')[0];
     const view=await fetch(base+`/api/state?token=${config.token}`);assert.equal(view.status,200);const data=await view.json();assert.equal(data.token,undefined);assert.equal(data.undo,undefined);

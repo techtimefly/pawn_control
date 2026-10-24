@@ -9,6 +9,7 @@ import { settingsOf } from './lib/state.mjs';
 import { ChessClient } from './lib/chess.mjs';
 import {migrateStudio,editorState,editStudio,studioAction,exportTemplate,genericState} from './lib/studio.mjs';
 import {refreshFeeds,feedAction,feedOutput} from './lib/feeds.mjs';
+import {upgradeStudio} from './public/studio-model.mjs';
 
 const root=dirname(fileURLToPath(import.meta.url));
 const safeEqual=(a,b)=> typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b));
@@ -18,6 +19,8 @@ export function createApp(config) {
   const legacy=store.get('state');
   const seedUsername=config.username&&config.username!=='your_chess_username'?config.username:'';
   let studio=store.get('studio:v2')||migrateStudio(legacy||seedUsername?store.state(seedUsername):genericState());
+  for(const profile of studio.profiles)for(const show of profile.shows)show.state=upgradeStudio(show.state);
+  studio.published.state=upgradeStudio(studio.published.state);
   store.set('studio:v2',studio); // Original v1 document remains intact for recovery.
   let state=editorState(studio),revision=0;
   const chess=new ChessClient(store,{fetcher:config.fetcher,agent:config.agent || `PawnControl/1.0 (Chess.com username: ${state.username})`});
@@ -101,7 +104,7 @@ export function createApp(config) {
         return json(res,404,{error:'Not found'});
       }
       const files={'/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/credits':'credits.html','/credits.mjs':'credits.mjs','/credits-source.mjs':'credits-source.mjs','/bonus-model.mjs':'bonus-model.mjs','/bonus-render.mjs':'bonus-render.mjs','/bonus-controls.mjs':'bonus-controls.mjs','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
-      Object.assign(files,{'/studio-model.mjs':'studio-model.mjs','/studio-controls.mjs':'studio-controls.mjs','/rss-render.mjs':'rss-render.mjs'});
+      Object.assign(files,{'/formats.mjs':'formats.mjs','/studio-model.mjs':'studio-model.mjs','/studio-controls.mjs':'studio-controls.mjs','/rss-render.mjs':'rss-render.mjs'});
       if(req.method==='GET' && files[url.pathname]) {
         const file=files[url.pathname], ext=file.split('.').pop();
         res.writeHead(200,{'Content-Type':{html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8'}[ext]});

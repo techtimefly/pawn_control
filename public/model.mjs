@@ -1,5 +1,6 @@
 import {bonusDefaults} from './bonus-model.mjs';
 import {studioDefaults,EXTRA_WIDGETS} from './studio-model.mjs';
+import {upgradeFormats} from './formats.mjs';
 export const MODES = ['blitz', 'rapid', 'bullet'];
 export const WIDGET_IDS = ['stats','scoreboard','ticker','tips','credits',...EXTRA_WIDGETS];
 // CTA identifiers are local record keys, not authentication credentials.
@@ -29,7 +30,7 @@ export const PRESETS = {
 };
 export function defaults() {
   const bonus=bonusDefaults();
-  return {
+  return upgradeFormats({
     ...studioDefaults(),
     credits:bonus.credits,tips:bonus.tips,creditsPlayback:bonus.creditsPlayback,tipsPlayback:bonus.tipsPlayback,
     version: 1, username: 'your_chess_username', channel: 'jamespawn', activeMode: 'blitz', showAvatar: false,
@@ -53,7 +54,7 @@ export function defaults() {
     ] },
     session: newSession(), undo: [], presets: {},
     api: { profile: null, stats: null, games: [], checkedAt: null, successAt: null, error: null, nextCheck: null }
-  };
+  });
 }
 export function newSession(baseline = {}) { return { startedAt: Date.now(), results: [], corrections: { win: 0, loss: 0, draw: 0 }, baseline, elapsed: 0, runningSince: null }; }
 export function totals(session) {

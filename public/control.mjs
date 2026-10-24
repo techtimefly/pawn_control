@@ -1,6 +1,7 @@
 import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId,WIDGET_IDS } from './model.mjs';
 import {createBonusControls} from './bonus-controls.mjs';
 import {createStudioControls} from './studio-controls.mjs';
+import {canvasSize} from './formats.mjs';
 import { el, renderCanvas, tickCanvas } from './render.mjs';
 const $=id=>document.getElementById(id);
 const dockMode=location.pathname==='/dock'||location.pathname==='/dock/'?'combined':location.pathname==='/dock/score'?'score':location.pathname==='/dock/cta'?'cta':null;
@@ -25,7 +26,7 @@ function action(a) {
   }).catch(e=>{toast(e.message);$('save-state').textContent='Change not saved'; if(state)renderTab();});
   return queue;
 }
-function change(mutator) { return action(()=>{const settings=structuredClone(Object.fromEntries(['username','channel','activeMode','showAvatar','fields','parts','goals','overrides','theme','widgets','layoutLocked','snap','ticker','credits','tips','info','counters','rss'].map(k=>[k,state[k]])));mutator(settings);return {type:'settings',settings};}); }
+function change(mutator) { return action(()=>{const settings=structuredClone(Object.fromEntries(['username','channel','activeMode','showAvatar','fields','parts','goals','overrides','theme','widgets','layoutLocked','snap','ticker','credits','tips','info','counters','rss','outputFormat','layouts'].map(k=>[k,state[k]])));mutator(settings);return {type:'settings',settings};}); }
 function showLogin() { events?.close(); $('app').hidden=true; $('login').hidden=false; }
 async function start() {
   try { state=await api('/api/state'); admin=await api('/api/admin'); }
@@ -64,6 +65,8 @@ function setTab(next) {
 function render(force=false) {
   if(!state)return;
   studioControls.render(state,force);
+  const size=canvasSize(state);document.querySelector('.canvas-chip').textContent=`Draft: ${size.width} × ${size.height}`;
+  const liveSize=canvasSize(globalLiveState());for(const id of ['overlay-dimensions','credits-dimensions'])if($(id))$(id).textContent=`Published source: ${liveSize.width} × ${liveSize.height}`;
   const busy=document.activeElement?.matches('input,textarea,select');
   renderSessionSummary();
   if((!busy||force)&&!dragging)renderTab();
@@ -146,6 +149,7 @@ function renderStats() {
   parts.append(inputField('Show avatar','checkbox',state.showAvatar,v=>change(s=>s.showAvatar=v)));
 }
 function renderLayout() {
+  const {width,height}=canvasSize(state);
   renderCanvas($('editor-canvas'),state,{editor:true});
   for(const node of $('editor-canvas').querySelectorAll('[data-widget]'))node.classList.toggle('selected',node.dataset.widget===selected);
   $('lock-layout').textContent=state.layoutLocked?'Unlock layout':'Lock layout';$('snap').checked=state.snap;
@@ -157,10 +161,10 @@ function renderLayout() {
   const fields=$('widget-fields');fields.replaceChildren();const w=state.widgets[selected];
   fields.append(el('h3','',`${selected.charAt(0).toUpperCase()+selected.slice(1)} position`));
   const grid=el('div','form-grid');
-  for(const [k,label,min,max] of [['x','X',0,2560],['y','Y',0,1440],['w','Width',150,2560],['h','Height',40,1440],['z','Layer',0,50],['scale','Content scale',.5,2]])grid.append(inputField(label,'number',w[k],v=>change(s=>s.widgets[selected][k]=v),{min,max,step:k==='scale'?.05:1}));
+  for(const [k,label,min,max] of [['x','X',0,width],['y','Y',0,height],['w','Width',150,width],['h','Height',40,height],['z','Layer',0,50],['scale','Content scale',.5,2]])grid.append(inputField(label,'number',w[k],v=>change(s=>s.widgets[selected][k]=v),{min,max,step:k==='scale'?.05:1}));
   fields.append(grid,inputField('Lock this widget','checkbox',w.locked,v=>change(s=>s.widgets[selected].locked=v)));
   if(selected==='stats')fields.append(button('Fit card height',()=>{
-    const card=$('editor-canvas').querySelector('.stats-card');const h=Math.ceil(card.scrollHeight*w.scale);change(s=>{s.widgets.stats.h=Math.min(1440-s.widgets.stats.y,Math.max(40,h));});
+    const card=$('editor-canvas').querySelector('.stats-card');const h=Math.ceil(card.scrollHeight*w.scale);change(s=>{s.widgets.stats.h=Math.min(height-s.widgets.stats.y,Math.max(40,h));});
   },'secondary wide'));
   resizePreviews();
 }
@@ -182,7 +186,7 @@ function renderTickerEditor() {
     toggle.classList.add('dock-settings-toggle');toggle.setAttribute('aria-expanded',String(document.body.classList.contains('dock-settings-open')));options.append(toggle);
   }
   options.append(el('p','small-note',`Current mode: ${state.ticker.mode==='scroll'?'Continuous scroll — all enabled messages travel across the ticker.':`Message rotation — one message at a time, changing every ${state.ticker.interval} seconds. Choose Continuous scroll for moving text.`}${state.ticker.paused?' Ticker is paused.':''}`));
-  const defs=[['mode','Display mode','select',{items:[['rotate','Message rotation'],['scroll','Continuous scroll']]}],['interval','Rotation interval (seconds)','number',{min:5,max:300}],['speed','Scroll speed (px / second)','number',{min:20,max:300}],['gap','Separator spacing (px)','number',{min:0,max:300}],['pause','Pause between scroll cycles (seconds)','number',{min:0,max:30}],['direction','Scroll direction','select',{items:[['left','Left'],['right','Right']]}],['font','Font size at 1440p','number',{min:18,max:60}],['opacity','Background opacity (%)','number',{min:0,max:100}],['separator','Message separator','text',{maxlength:12}],['paused','Pause ticker (draft)','checkbox',{}]];
+  const defs=[['mode','Display mode','select',{items:[['rotate','Message rotation'],['scroll','Continuous scroll']]}],['interval','Rotation interval (seconds)','number',{min:5,max:300}],['speed','Scroll speed (px / second)','number',{min:20,max:300}],['gap','Separator spacing (px)','number',{min:0,max:300}],['pause','Pause between scroll cycles (seconds)','number',{min:0,max:30}],['direction','Scroll direction','select',{items:[['left','Left'],['right','Right']]}],['font','Font size (native pixels)','number',{min:18,max:60}],['opacity','Background opacity (%)','number',{min:0,max:100}],['separator','Message separator','text',{maxlength:12}],['paused','Pause ticker (draft)','checkbox',{}]];
   for(const [key,label,type,opts] of defs)options.append(inputField(label,type,state.ticker[key],v=>change(s=>s.ticker[key]=v),opts));
   options.append(inputField('Show ticker','checkbox',state.widgets.ticker.visible,v=>change(s=>s.widgets.ticker.visible=v)));
   renderTickerPreview();
@@ -195,7 +199,7 @@ function renderTheme() {
   document.querySelector('.theme-swatch strong').textContent=state.username;
   const host=$('theme-controls');host.replaceChildren();
   for(const [key,label] of [['accent','Accent'],['background','Card background'],['foreground','Values'],['muted','Labels'],['streak','Streak badge']])host.append(inputField(label,'color',state.theme[key],v=>change(s=>s.theme[key]=v)));
-  for(const [key,label,min,max] of [['opacity','Card opacity (%)',0,100],['radius','Corner radius',0,60],['font','Font size at 1440p',18,60],['padding','Card padding',10,60],['gap','Row spacing',4,40]])host.append(inputField(label,'number',state.theme[key],v=>change(s=>s.theme[key]=v),{min,max}));
+  for(const [key,label,min,max] of [['opacity','Card opacity (%)',0,100],['radius','Corner radius',0,60],['font','Font size (native pixels)',18,60],['padding','Card padding',10,60],['gap','Row spacing',4,40]])host.append(inputField(label,'number',state.theme[key],v=>change(s=>s.theme[key]=v),{min,max}));
 }
 function renderSettings() {
   $('username').value=state.username;$('channel').value=state.channel;
@@ -206,6 +210,7 @@ function renderSettings() {
 }
 function renderAdmin() {
   $('undo').disabled=!admin.canUndo;
+  if(state){const {width,height}=canvasSize(globalLiveState());for(const id of ['overlay-dimensions','credits-dimensions'])if($(id))$(id).textContent=`Published source: ${width} × ${height}`;}
   if(admin.token)$('overlay-url').value=`${location.origin}/overlay?token=${encodeURIComponent(admin.token)}`;
   if(admin.token)$('credits-url').value=`${location.origin}/credits?token=${encodeURIComponent(admin.token)}`;
   const select=$('layout-presets');select.replaceChildren();const first=el('option','','Load preset…');first.value='';select.append(first);
@@ -214,12 +219,18 @@ function renderAdmin() {
 function resizePreviews() {
   bonusControls.resize();
   const wrap=document.querySelector('.stage-wrap');
-  if(wrap && !wrap.closest('[hidden]')) {
-    const output=$('preview-size').value==='1080', width=output?1920:2560;
-    $('stage').style.width=`${width}px`; $('stage').style.height=`${output?1080:1440}px`;
+  if(state&&wrap && !wrap.closest('[hidden]')) {
+    const size=canvasSize(state),output=state.outputFormat==='landscape'&&$('preview-size').value==='1080',width=output?1920:size.width,height=output?1080:size.height;
+    $('preview-size').disabled=state.outputFormat==='vertical';
+    $('preview-size').options[0].textContent=state.outputFormat==='vertical'?'Vertical native canvas':'1440p canvas';
+    if(state.outputFormat==='vertical')$('preview-size').value='1440';
+    wrap.style.aspectRatio=`${width} / ${height}`;
+    $('stage').style.width=`${width}px`; $('stage').style.height=`${height}px`;
     $('stage').style.transform=`scale(${wrap.clientWidth/width})`;
     $('editor-canvas').style.transform=output?'scale(.75)':''; $('editor-canvas').style.transformOrigin='0 0';
+    $('preview-label').textContent=`${width} × ${height}${output?' output preview':''}`;
     const guide=document.querySelector('.stage-guide');guide.style.zoom=output?'.75':'1';
+    guide.style.left=state.outputFormat==='vertical'?'40px':'100px';guide.style.top=state.outputFormat==='vertical'?'220px':'100px';guide.style.width=state.outputFormat==='vertical'?'1000px':'1650px';guide.style.height='1080px';
   }
   if(state) {
     const mini=document.querySelector('.mini-preview');const scale=Math.min((mini.clientWidth-20)/state.widgets.stats.w,(mini.clientHeight-10)/state.widgets.stats.h);
@@ -253,7 +264,7 @@ $('edit-totals').onclick=async()=>{const t=totals(globalLiveState().session),val
 $('active-mode').onchange=e=>change(s=>s.activeMode=e.target.value);
 $('show-fields').onclick=()=>change(s=>s.fields.forEach(f=>f.visible=true));$('hide-fields').onclick=()=>change(s=>s.fields.forEach(f=>f.visible=false));
 $('lock-layout').onclick=()=>change(s=>s.layoutLocked=!s.layoutLocked);$('snap').onchange=e=>change(s=>s.snap=e.target.checked);
-$('preview-size').onchange=e=>{$('preview-label').textContent=e.target.value==='1080'?'1920 × 1080 output · 75% scaling':'2560 × 1440';resizePreviews();toast(e.target.value==='1080'?'Output coordinates scale to 75%. Preview is fitted to this window.':'Editing native 1440p canvas.');};
+$('preview-size').onchange=()=>resizePreviews();
 $('save-layout').onclick=async()=>{const value=await modal('Save layout preset',[{key:'name',label:'Preset name',maxlength:40}]);if(value)action({type:'save-preset',name:value.name});};
 $('layout-presets').onchange=e=>{if(e.target.value)action({type:'load-preset',name:e.target.value});};
 $('delete-layout').onclick=async()=>{const value=await modal('Delete layout preset',[{key:'name',label:'Exact preset name',maxlength:40}]);if(value)action({type:'delete-preset',name:value.name});};
@@ -275,14 +286,15 @@ editor.addEventListener('pointerdown',e=>{
   const id=widget.dataset.widget;selected=id;const original=structuredClone(state.widgets[id]);
   if(state.layoutLocked||original.locked){renderLayout();return;}
   e.preventDefault();dragging=true;widget.setPointerCapture(e.pointerId);
-  const resize=!!e.target.closest('.resize-handle'),startX=e.clientX,startY=e.clientY,scale=editor.getBoundingClientRect().width/2560;let next=original;
+  const {width,height}=canvasSize(state);
+  const resize=!!e.target.closest('.resize-handle'),startX=e.clientX,startY=e.clientY,scale=editor.getBoundingClientRect().width/width;let next=original;
   for(const n of editor.querySelectorAll('[data-widget]'))n.classList.toggle('selected',n===widget);
   const move=event=>{
     let dx=(event.clientX-startX)/scale,dy=(event.clientY-startY)/scale;
     const snap=v=>state.snap?Math.round(v/20)*20:Math.round(v);
     next={...original};
-    if(resize){next.w=Math.max(150,Math.min(2560-original.x,snap(original.w+dx)));next.h=Math.max(40,Math.min(1440-original.y,snap(original.h+dy)));}
-    else {next.x=Math.max(0,Math.min(2560-original.w,snap(original.x+dx)));next.y=Math.max(0,Math.min(1440-original.h,snap(original.y+dy)));if(Math.abs(next.x-(2560-next.w))<20)next.x=2560-next.w;if(Math.abs(next.y-(1440-next.h))<20)next.y=1440-next.h;}
+    if(resize){next.w=Math.max(150,Math.min(width-original.x,snap(original.w+dx)));next.h=Math.max(40,Math.min(height-original.y,snap(original.h+dy)));}
+    else {next.x=Math.max(0,Math.min(width-original.w,snap(original.x+dx)));next.y=Math.max(0,Math.min(height-original.h,snap(original.y+dy)));if(Math.abs(next.x-(width-next.w))<20)next.x=width-next.w;if(Math.abs(next.y-(height-next.h))<20)next.y=height-next.h;}
     widget.style.left=`${next.x}px`;widget.style.top=`${next.y}px`;widget.style.width=`${next.w}px`;widget.style.height=`${next.h}px`;
   };
   const finish=()=>{widget.removeEventListener('pointermove',move);widget.removeEventListener('pointerup',finish);widget.removeEventListener('pointercancel',cancel);dragging=false;change(s=>s.widgets[id]=next);};

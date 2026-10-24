@@ -1,5 +1,6 @@
 import {createMessageId} from './model.mjs';
 import {createCredits,createTips} from './bonus-render.mjs';
+import {canvasSize} from './formats.mjs';
 const node=(tag,cls,text)=>{const e=document.createElement(tag);e.className=cls;if(text!=null)e.textContent=text;return e;};
 export function createBonusControls({getState,change,action,button,inputField}) {
   const $=id=>document.getElementById(id);
@@ -55,6 +56,6 @@ export function createBonusControls({getState,change,action,button,inputField}) 
     });
     $('tips-pause').textContent=(state.studio?.live.state||state).tipsPlayback.paused?'Resume tips live':'Pause tips live';tipsPreview.update(t,state.tipsPlayback);resize();
   }
-  function resize(){const shell=$('credits-preview').parentElement;if(shell.clientWidth)$('credits-preview').style.transform=`scale(${shell.clientWidth/2560})`;}
+  function resize(){const shell=$('credits-preview').parentElement,{width,height}=canvasSize(getState()||{});shell.style.aspectRatio=`${width} / ${height}`;$('credits-preview').style.width=`${width}px`;$('credits-preview').style.height=`${height}px`;if(shell.clientWidth)$('credits-preview').style.transform=`scale(${shell.clientWidth/width})`;}
   return {render(tab){if(tab==='credits')renderCredits();if(tab==='tips')renderTips();},resize};
 }

@@ -1,5 +1,6 @@
 import {el} from './render.mjs';
 import {createMessageId} from './model.mjs';
+import {FORMATS,canvasSize} from './formats.mjs';
 export function createStudioControls({getState,change,action,api,accept,button,inputField,modal,toast,afterQueue}) {
   const host=el('section','panel creator-studio');document.querySelector('.desk').prepend(host);
   let state;
@@ -11,7 +12,9 @@ export function createStudioControls({getState,change,action,api,accept,button,i
   const details=(title)=>{const d=el('details');d.append(el('summary','',title));host.append(d);return d;};
   return {render(next,force=false){state=next;if(!state.studio||!force&&host.contains(document.activeElement)&&document.activeElement.matches('input,select,textarea'))return;
     const open=[...host.querySelectorAll('details')].map(x=>x.open);host.replaceChildren();const data=state.studio,p=data.profiles.find(p=>p.id===data.selected.profileId),show=p.shows.find(s=>s.id===data.selected.showId);
-    host.append(el('h2','','Creator Studio'),el('p','',`LIVE: ${data.live.name}`),el('p','small-note',`Editing: ${p.name} / ${show.name}. Structural edits are saved as drafts. Session, playback and “live” controls affect the published output immediately.`));
+    const liveSize=canvasSize(data.live.state);
+    host.append(el('h2','','Creator Studio'),el('p','',`LIVE: ${data.live.name} — OBS source ${liveSize.width} × ${liveSize.height}`),el('p','small-note',`Editing: ${p.name} / ${show.name}. Structural edits are saved as drafts. Session, playback and “live” controls affect the published output immediately.`));
+    host.append(select('Output format (draft)',Object.entries(FORMATS).map(([id,f])=>[id,`${f.label} — ${f.width} × ${f.height}`]),state.outputFormat,v=>change(s=>s.outputFormat=v)),el('p','small-note','Each format has its own saved widget positions, sizes, visibility and layers. Take Live publishes the selected format. Set OBS Browser Source dimensions to match; the source URL stays the same.'));
     const row=el('div','button-row');row.append(select('Brand profile',data.profiles.map(p=>[p.id,p.name]),p.id,id=>{const target=data.profiles.find(p=>p.id===id);studio({type:'select',profileId:id,showId:target.shows[0].id});}),select('Show setup',p.shows.map(s=>[s.id,s.name]),show.id,id=>studio({type:'select',profileId:p.id,showId:id})),button('Take Live',async()=>{if(await modal('Take this show live?',[],`Publish ${p.name} / ${show.name} to the stable overlay and credits URLs?`))studio({type:'take-live',profileId:p.id,showId:show.id});},'primary'));host.append(row);
     const profiles=details('Profiles, shows and portable templates');const buttons=el('div','button-row');
     for(const [type,label] of [['create-profile','New brand'],['duplicate-profile','Duplicate brand'],['rename-profile','Rename brand'],['create-show','New show'],['duplicate-show','Duplicate show'],['rename-show','Rename show']])buttons.append(button(label,()=>named(type,label)));

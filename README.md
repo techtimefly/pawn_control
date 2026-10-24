@@ -9,7 +9,18 @@ A local-first broadcast controller with brand profiles, named show setups, an ex
 - **Take Live** publishes the selected show after an explicit confirmation. Existing `/overlay?token=...` and `/credits?token=...` URLs follow the published snapshot, even when a logged-in controller opens them. Controller cookies and read-only tokens remain separate.
 - Scores, timers, credits/tips playback, counter +/- and explicitly labeled live CTA/RSS playback controls act immediately on the **LIVE** show named at the top. Session controls display the live session. CTA pause in the settings editor is a draft setting; the separate Pause/Resume CTA live button is immediate.
 - Information cards and labeled counters are configured in Creator Studio and positioned in Layout studio. Counter values persist per show; the chess session reset controls reset the chess score/timer, not manual counters.
-- The first output format remains **landscape 2560 × 1440**, with the existing 1080p preview/downscale. A separate output-format selector and independently authored vertical layouts are deferred. There is no stretched vertical output.
+- **Output format (draft)** selects **landscape 2560 × 1440** or **vertical 1080 × 1920**. Each show saves two independent widget layouts: positions, dimensions, scale, visibility, locks and layers. Content and brand styling remain shared. Switching formats restores its saved layout; it never stretches the other layout. Format and layout edits publish only through Take Live.
+
+## Output formats and OBS dimensions
+
+| Format | Overlay Browser Source | Dedicated credits Browser Source |
+| --- | --- | --- |
+| Landscape | Width 2560, height 1440 | Width 2560, height 1440 |
+| Vertical | Width 1080, height 1920 | Width 1080, height 1920 |
+
+Set the OBS Browser Source dimensions to match the **published** format shown in Creator Studio and Settings. The app changes its rendered canvas after Take Live; it cannot change OBS source properties. Prepare the matching OBS scene/source dimensions before airing the change. The read-only URLs remain unchanged. One format is live at a time. The 1080p downscale preview applies only to landscape and is disabled in vertical mode. The portrait editor and credits preview retain their 9:16 aspect ratio.
+
+Existing installations retain their exact landscape widget arrangement and start in landscape mode. Vertical starts with a separately authored arrangement and is saved independently after edits. Presets, backups and portable templates include both layouts and the selected format.
 
 ## RSS Feed Ticker
 
@@ -44,7 +55,7 @@ npm run setup
 npm start
 ```
 
-Open `http://CONTAINER-IP:3000/control` and sign in. Copy the read-only OBS URL from Settings into an OBS Browser Source, width **2560**, height **1440**. Keep the source at native size. The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
+Open `http://CONTAINER-IP:3000/control` and sign in. Copy the read-only OBS URL from Settings into an OBS Browser Source, width **2560**, height **1440** for landscape, or width **1080**, height **1920** for vertical. Keep the source at native size. The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
 
 Alternatively, copy `.env.example` to `.env` and set CONTROL_PASSWORD (16+ characters) and OVERLAY_TOKEN (24+ characters). Setup never overwrites an existing `.env`.
 
@@ -62,7 +73,7 @@ For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and a
 | Optional Docker deployment | Docker Engine and the Docker Compose plugin; the image includes Node, so the host does not need a separate Node installation. |
 | Networking | Outbound HTTPS to `api.chess.com`; streaming PC access to the configured container port (3000 by default). |
 | Browser/OBS | A modern browser for controls and OBS Browser Source support; custom browser docks for the controller dock pages. |
-| Canvas | OBS Browser Source width 2560, height 1440; OBS may downscale output to 1920 × 1080. |
+| Canvas | Landscape source: 2560 × 1440 (may downscale to 1920 × 1080). Vertical source: 1080 × 1920. Match the published format. |
 
 Set deployment values in the untracked `.env` before first startup:
 
@@ -83,7 +94,7 @@ Set deployment values in the untracked `.env` before first startup:
 
 - Reference-inspired charcoal stats card with cyan username, aligned rating rows, and orange streak badge.
 - Separate scoreboard and CTA ticker; each widget can be shown, dragged, resized, layered, and locked.
-- 1440p layout editor, edge/grid snapping, numeric positioning, and 1080p preview.
+- Landscape/vertical layout editor, canvas-aware dragging/resizing and numeric bounds, grid snapping, and landscape 1080p preview.
 - Per-stat visibility and ordering; Minimal, Session, Full, and custom presets.
 - Click W/L/D scores to increment, dedicated plus/minus controls, result recording, undo, editable ordered result history, reset, and session timer.
 - Ticker with editable/reorderable messages, enabled flags, scrolling or rotation, speed, direction, timing, pause, dynamic values, and appearance controls.
@@ -211,7 +222,7 @@ Optional container image: `docker compose up -d --build` after configuring `.env
 - After correcting the unit/runtime, use `systemctl daemon-reload`, `systemctl reset-failed pawn-control`, `systemctl restart pawn-control`, then `journalctl -u pawn-control -n 50 --no-pager`.
 - An error trying to create `/opt/pawn_control/data` under the hardened service: set `.env` DATA_DIR to `/var/lib/pawn-control`, not `./data`, and restart.
 - Password/token startup rejection: check the length requirements above and replace example credentials. Do not paste `.env` into logs or support messages.
-- A black OBS source: verify the full token-bearing overlay URL, source dimensions 2560×1440, and visibility settings. If that exact URL works in a browser on the streaming PC but OBS stays black, restart OBS and check its browser-source logs if necessary.
+- A black OBS source: verify the full token-bearing overlay URL, source dimensions matching the published format, and visibility settings. If that exact URL works in a browser on the streaming PC but OBS stays black, restart OBS and check its browser-source logs if necessary.
 - CTA additions on plain HTTP are supported; if an older UI still reports `crypto.randomUUID is not a function`, update the checkout and hard-refresh the control panel/dock.
 
 `StateDirectory` behavior is documented in [systemd.exec](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#RuntimeDirectory=).
@@ -262,7 +273,7 @@ Both widgets start hidden on the main overlay. Enable them in their editors or L
 
 1. Open **End credits** in the control panel, or **Credits** in the combined OBS dock. Edit, reorder, and enable sections and entries. The initial editable template uses the supplied hardware/software example; review it before broadcasting.
 2. Copy the dedicated **credits Browser Source URL** from that page. It is `/credits?token=YOUR_OVERLAY_TOKEN`; keep it private just like the overlay URL.
-3. Add it as a Browser Source to your ending scene, at **2560 x 1440**. The source restarts automatically on OBS source activation and stops/resets on deactivation. Keep **Refresh browser when scene becomes active** enabled as a reload fallback.
+3. Add it as a Browser Source to your ending scene, at **2560 × 1440** for landscape or **1080 × 1920** for vertical. The source restarts automatically on OBS source activation and stops/resets on deactivation. Keep **Refresh browser when scene becomes active** enabled as a reload fallback.
 4. Credits automatically scroll on page load. The default is a 60-second run followed by a held final message. Choose a total duration or scroll speed, optional looping, font sizes, spacing, colors, and background opacity in Credits settings.
 
 The dedicated source listens to the [OBS per-source activation event](https://github.com/obsproject/obs-browser#register-for-event-callbacks), independently in each browser source. Repeated active notifications do not interrupt playback. Ordinary browser previews still autoplay on load; switching browser tabs does not restart them. Use a dedicated source for the ending scene: if the same OBS source remains active in both scenes, OBS has no deactivation/reactivation to report. This behavior does not restart the main overlay or the editor preview.
