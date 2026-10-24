@@ -7,7 +7,7 @@ import {createTipsTextControls} from '../public/tips-text-controls.mjs';
 import {createTips} from '../public/bonus-render.mjs';
 
 test('structured round trip preserves identity, order, duplicate content and exact metadata',()=>{
-  const items=[{id:'a',title:'  â™ž: title  ',category:'"quoted"',enabled:false,text:'First: line\r\n\nSecond <b>plain</b>'},{id:'b',title:'',category:'',enabled:true,text:'First: line\r\n\nSecond <b>plain</b>'}];
+  const items=[{id:'a',title:'  \u265e: title  ',category:'"quoted"',enabled:false,text:'First: line\r\n\nSecond <b>plain</b>'},{id:'b',title:'',category:'',enabled:true,text:'First: line\r\n\nSecond <b>plain</b>'}];
   for(const source of [serializeTips(items),serializeTips(items).replaceAll('\n','\r\n')]){
     const result=parseTips(source,'structured',items);assert.deepEqual(result.errors,[]);assert.deepEqual(result.items,items);
   }
@@ -15,9 +15,9 @@ test('structured round trip preserves identity, order, duplicate content and exa
   const edited=parseTips('ID: a\nText: Changed','structured',items).items[0];assert.deepEqual(edited,{...items[0],text:'Changed'});
 });
 test('new entries, simple lines, whitespace, Unicode and colons',()=>{
-  const result=parseTips(' \r\n Text: â™ž Threats: check\r\n\r\nText: â™ž Threats: check','structured');
+  const result=parseTips(' \r\n Text: \u265e Threats: check\r\n\r\nText: \u265e Threats: check','structured');
   assert.deepEqual(result.errors,[]);assert.equal(result.items.length,2);assert.notEqual(result.items[0].id,result.items[1].id);assert.equal(result.items[0].enabled,true);assert.equal(result.items[0].title,'');
-  const simple=parseTips('  One: â™Ÿ \r\n\nTwo\n','simple');assert.deepEqual(simple.items.map(t=>t.text),['One: â™Ÿ','Two']);
+  const simple=parseTips('  One: \u265f \r\n\nTwo\n','simple');assert.deepEqual(simple.items.map(t=>t.text),['One: \u265f','Two']);
 });
 test('line-specific validation catches unknown/duplicate fields, enabled, missing/empty text, IDs and quotes',()=>{
   for(const [source,line] of [['Wrong: value\nText: ok',1],['Text: ok\nEnabled: true',2],['Title: only',1],['Text:   ',1],['Text: ok\nText: two',2],['ID: unknown\nText: ok',1],['Text: "unterminated',1]])assert.ok(parseTips(source,'structured').errors.some(e=>e.line===line),source);
