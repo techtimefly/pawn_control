@@ -1,8 +1,8 @@
 import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId } from './model.mjs';
 import { el, renderCanvas, tickCanvas } from './render.mjs';
 const $=id=>document.getElementById(id);
-const dockMode=location.pathname==='/dock/score'?'score':location.pathname==='/dock/cta'?'cta':null;
-if(dockMode){document.body.classList.add('dock-mode',`dock-${dockMode}`);document.title=`Pawn Control · ${dockMode==='score'?'Score':'CTA'} dock`;}
+const dockMode=location.pathname==='/dock'||location.pathname==='/dock/'?'combined':location.pathname==='/dock/score'?'score':location.pathname==='/dock/cta'?'cta':null;
+if(dockMode){document.body.classList.add('dock-mode',`dock-${dockMode}`);document.title=`Pawn Control · ${dockMode==='combined'?'Stream':dockMode==='score'?'Score':'CTA'} dock`;}
 let state, admin={}, events, tab='session', selected='stats', dragging=false, queue=Promise.resolve(), toastTimer;
 const title={session:'Session overview',layout:'Layout studio',stats:'Stats & visibility',ticker:'CTA ticker',appearance:'Appearance',settings:'Settings & connections'};
 const readableTime=value=>value?new Date(value).toLocaleString():'Not available yet';
@@ -28,18 +28,35 @@ async function start() {
   try { state=await api('/api/state'); admin=await api('/api/admin'); }
   catch { showLogin(); return; }
   $('login').hidden=true; $('app').hidden=false;
-  if(dockMode){setTab(dockMode==='score'?'session':'ticker');$('dock-title').textContent=dockMode==='score'?'Score dock':'CTA dock';}
+  if(dockMode){
+    let initial=dockMode==='cta'?'ticker':'session';
+    if(dockMode==='combined'){try{if(localStorage.getItem('pawn-control-dock-tab')==='ticker')initial='ticker';}catch{}}
+    setTab(initial);$('dock-title').textContent=dockMode==='combined'?'Stream dock':dockMode==='score'?'Score dock':'CTA dock';
+  }
   render(); renderAdmin(); events?.close(); events=new EventSource('/api/events');
-  events.addEventListener('state',event=>{accept(JSON.parse(event.data)); $('connection-dot').classList.add('connected'); $('connection-label').textContent='Server connected';});
-  events.onerror=()=>{$('connection-dot').classList.remove('connected');$('connection-label').textContent='Reconnecting…';void api('/api/state').catch(()=>{});};
+  events.addEventListener('state',event=>{accept(JSON.parse(event.data));setConnection(true);});
+  events.onerror=()=>{setConnection(false);void api('/api/state').catch(()=>{});};
   resizePreviews();
 }
 function accept(next,force=false) { if(!next || (next.instance===state?.instance && next.revision<state?.revision))return;state=next;render(force); }
+function setConnection(connected){
+  for(const id of ['connection-dot','dock-connection-dot'])$(id).classList.toggle('connected',connected);
+  for(const id of ['connection-label','dock-connection-label'])$(id).textContent=connected?'Server connected':'Reconnecting…';
+}
 function setTab(next) {
   tab=next;
+  if(dockMode==='combined') {
+    document.body.classList.toggle('dock-score',tab==='session');document.body.classList.toggle('dock-cta',tab==='ticker');
+    try{localStorage.setItem('pawn-control-dock-tab',tab);}catch{}
+    for(const [id,value] of [['dock-score-tab','session'],['dock-cta-tab','ticker']]){
+      const selected=tab===value;$(id).setAttribute('aria-selected',String(selected));$(id).tabIndex=selected?0:-1;
+      $(`${value}-tab`).setAttribute('role','tabpanel');$(`${value}-tab`).setAttribute('aria-labelledby',id);
+    }
+  }
   for(const button of document.querySelectorAll('[data-tab]')) button.classList.toggle('active',button.dataset.tab===tab);
   for(const p of document.querySelectorAll('.tab-panel'))p.hidden=p.id!==`${tab}-tab`;
   $('page-title').textContent=title[tab];renderTab();resizePreviews();
+  if(dockMode==='combined')window.scrollTo(0,0);
 }
 function render(force=false) {
   if(!state)return;
@@ -151,7 +168,7 @@ function renderTickerEditor() {
     row.append(head,text);host.append(row);
   });
   const options=$('ticker-options');options.replaceChildren();
-  if(dockMode==='cta') {
+  if(dockMode==='cta'||dockMode==='combined') {
     const toggle=button(document.body.classList.contains('dock-settings-open')?'Hide ticker settings':'Ticker settings',()=>{
       const open=document.body.classList.toggle('dock-settings-open');toggle.textContent=open?'Hide ticker settings':'Ticker settings';toggle.setAttribute('aria-expanded',String(open));
     });
@@ -211,6 +228,12 @@ function modal(title,fields=[],message='') {
 }
 $('login-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/login',{password:new FormData(e.target).get('password')});e.target.reset();$('login-error').textContent='';await start();}catch(err){$('login-error').textContent=err.message;}};
 $('logout').onclick=async()=>{await api('/api/logout',{});showLogin();};
+$('dock-logout').onclick=$('logout').onclick;
+for(const id of ['dock-score-tab','dock-cta-tab'])$(id).onkeydown=e=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();
+  const next=e.key==='Home'?'session':e.key==='End'?'ticker':tab==='session'?'ticker':'session';
+  setTab(next);$(next==='session'?'dock-score-tab':'dock-cta-tab').focus();
+};
 for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>setTab(b.dataset.tab);
 for(const b of document.querySelectorAll('[data-goto]'))b.onclick=()=>setTab(b.dataset.goto);
 $('refresh').onclick=async()=>{try{await api('/api/refresh',{});toast('Refresh requested. Upstream cache and retry limits still apply.');}catch(e){toast(e.message);}};

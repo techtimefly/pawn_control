@@ -22,6 +22,8 @@ Verified locally on Windows with Node.js 24.19.0, October 23, 2026.
 
 ## Deployment checks still needed
 
+Combined dock follow-up: `/dock` was browser-verified with one sign-in, Score/CTA switching in the same page, and selected-tab restoration after refresh. It shares one authenticated event connection, exposes connection status and sign-out, and retains the separate dock URLs. The combined route is included in the existing HTTP/auth integration checks.
+
 Dock/timer follow-up: verified Score and CTA pages in browser views at 380 px width, password login, starting/pausing/restarting the clock, preserved scores/history after restart, and adding an additional CTA. Both dock consoles were free of errors/warnings. OBS embedding itself remains a deployment-side check.
 
 Ticker follow-up: replaced the interval/Web Animations implementation with an elapsed-time renderer and repeated scrolling content. A browser fixture verified rotation at a two-second interval and moving scroll text while receiving state updates every 250 milliseconds. Pause held the same text and transform across observations; resume and hide/show restored visible motion without console errors. Actual OBS verification is still required on the streaming PC.

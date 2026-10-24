@@ -10,7 +10,7 @@ test('authenticated actions persist; overlay is read-only; SSE delivers results'
   const post=(path,data,cookie)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(data)});
   try {
     assert.equal((await fetch(base+'/api/state')).status,401);
-    for(const path of ['/dock/score','/dock/cta']) {
+    for(const path of ['/dock','/dock/','/dock/score','/dock/cta']) {
       const response=await fetch(base+path);assert.equal(response.status,200);assert.match(await response.text(),/Control password/);
     }
     assert.equal((await post('/api/login',{password:'bad'})).status,401);

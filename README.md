@@ -147,10 +147,13 @@ Tests exercise session/streak rules, undo/reset, validation, ticker substitution
 
 ## OBS browser docks
 
+Recommended: add **`http://CONTAINER-IP:3000/dock`** once for a combined dock with **Score / CTA** tabs and a single login. Switching tabs stays on the same page and authenticated connection. The selected tab is remembered in that browser across refreshes when local storage is available. The header shows connection status and a Sign out button. The session still expires normally after 12 hours. Separate dock URLs remain available below.
+
 Add these URLs in **OBS → Docks → Custom Browser Docks** (replace CONTAINER-IP):
 
 | Dock | URL | Controls |
 | --- | --- | --- |
+| Combined | `http://CONTAINER-IP:3000/dock` | Score and CTA tabs, one login, remembered tab, shared connection status and sign-out |
 | Score | `http://CONTAINER-IP:3000/dock/score` | W/L/D, plus/minus, undo, corrections, reset, result history, and start/pause/restart clock |
 | CTA | `http://CONTAINER-IP:3000/dock/cta` | Add/edit/reorder/enable messages, pause/show ticker, scrolling/rotation and appearance settings |
 
