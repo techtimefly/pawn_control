@@ -1,4 +1,14 @@
 export const MODES = ['blitz', 'rapid', 'bullet'];
+// CTA identifiers are local record keys, not authentication credentials.
+let messageSequence=0;
+export function createMessageId(cryptoProvider=globalThis.crypto) {
+  if(typeof cryptoProvider?.randomUUID==='function')return cryptoProvider.randomUUID();
+  if(typeof cryptoProvider?.getRandomValues==='function') {
+    const bytes=cryptoProvider.getRandomValues(new Uint8Array(16));
+    return 'cta-'+Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  return `cta-${Date.now().toString(36)}-${(++messageSequence).toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 export const FIELDS = {
   username: ['♛', 'Player'], blitz: ['ϟ', 'Blitz'], rapid: ['◷', 'Rapid'], bullet: ['↗', 'Bullet'],
   session: ['♜', 'Session'], streak: ['♨', 'Session streak'], bestStreak: ['★', 'Best session streak'],
