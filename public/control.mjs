@@ -1,4 +1,4 @@
-import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock } from './model.mjs';
+import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId } from './model.mjs';
 import { el, renderCanvas, tickCanvas } from './render.mjs';
 const $=id=>document.getElementById(id);
 let state, admin={}, events, tab='session', selected='stats', dragging=false, queue=Promise.resolve(), toastTimer;
@@ -215,7 +215,7 @@ $('preview-size').onchange=e=>{$('preview-label').textContent=e.target.value==='
 $('save-layout').onclick=async()=>{const value=await modal('Save layout preset',[{key:'name',label:'Preset name',maxlength:40}]);if(value)action({type:'save-preset',name:value.name});};
 $('layout-presets').onchange=e=>{if(e.target.value)action({type:'load-preset',name:e.target.value});};
 $('delete-layout').onclick=async()=>{const value=await modal('Delete layout preset',[{key:'name',label:'Exact preset name',maxlength:40}]);if(value)action({type:'delete-preset',name:value.name});};
-$('add-message').onclick=()=>change(s=>s.ticker.messages.push({id:crypto.randomUUID(),text:'Follow {channel} for more chess!',enabled:true}));
+$('add-message').onclick=()=>change(s=>s.ticker.messages.push({id:createMessageId(),text:'Follow {channel} for more chess!',enabled:true}));
 $('identity-form').onsubmit=async e=>{e.preventDefault();const username=$('username').value.trim(),channel=$('channel').value.trim();if(username!==state.username&&!await modal('Change Chess.com player?',[],'Cached stats and rating baselines will be cleared. Session scores remain.'))return;change(s=>{s.username=username;s.channel=channel;});};
 $('copy-url').onclick=async()=>{try{await navigator.clipboard.writeText($('overlay-url').value);toast('OBS URL copied.');}catch{toast('Clipboard unavailable here. Reveal the URL and copy it manually.');}};
 $('reveal-url').onclick=()=>{const input=$('overlay-url');input.type=input.type==='password'?'text':'password';$('reveal-url').textContent=input.type==='password'?'Reveal URL':'Hide URL';};
