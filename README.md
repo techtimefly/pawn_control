@@ -2,7 +2,11 @@
 
 A self-hosted chess broadcast desk for **twitch.tv/jamespawn**, pulling public Chess.com data for a configurable player. Runs locally or as a Linux service on your LAN, with a **2560 x 1440 logical design** that fits any OBS Browser Source size.
 
+> Main session page
+
 ![Session Page](assets/screenshots/session.png)
+
+> Overlay Example in OBS as a browser source
 
 ![OBS Overlay - Browser Source](assets/screenshots/obs_overlay.png)
 ## Quick start
