@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { authenticationConfig } from './lib/auth-config.mjs';
 import { Store } from './lib/store.mjs';
 import { applyAction, settingsOf } from './lib/state.mjs';
 import { ChessClient } from './lib/chess.mjs';
@@ -11,8 +12,9 @@ import { ChessClient } from './lib/chess.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
 const safeEqual=(a,b)=> typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b));
 export function createApp(config) {
+  config={...config,...authenticationConfig(config)};
   const store=new Store(config.dataDir), sessions=new Map(), streams=new Map(), attempts=new Map();
-  const passwordSalt=randomBytes(16), passwordHash=scryptSync(config.password,passwordSalt,32);
+  const passwordSalt=randomBytes(16), passwordHash=config.authRequired?scryptSync(config.password,passwordSalt,32):null;
   let state=store.state(config.username);
   if(!/^[a-zA-Z0-9_-]{2,50}$/.test(state.username) || state.username==='your_chess_username') {
     store.close(); throw new Error('Set CHESS_USERNAME to your Chess.com username before first startup.');
@@ -48,8 +50,8 @@ export function createApp(config) {
     res.setHeader('Cache-Control','no-store'); res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Referrer-Policy','no-referrer'); res.setHeader('X-Frame-Options','SAMEORIGIN');
     res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'");
-    const url=new URL(req.url,'http://local'), auth=authenticated(req);
-    const readonly=safeEqual(url.searchParams.get('token'),config.token);
+    const url=new URL(req.url,'http://local'), auth=config.authRequired?authenticated(req):{};
+    const readonly=!config.authRequired||safeEqual(url.searchParams.get('token'),config.token);
     try {
       if(req.method==='POST') {
         const origin=req.headers.origin;
@@ -57,6 +59,7 @@ export function createApp(config) {
         if(!req.headers['content-type']?.startsWith('application/json')) return json(res,415,{error:'JSON required'});
       }
       if(url.pathname==='/health' && req.method==='GET') return json(res,200,{ok:true});
+      if(!config.authRequired&&['/api/login','/api/logout'].includes(url.pathname)&&req.method==='POST')return json(res,200,{ok:true});
       if(url.pathname==='/api/login' && req.method==='POST') {
         const ip=req.socket.remoteAddress, now=Date.now();
         let attempt=attempts.get(ip); if(!attempt || attempt.until<now) { attempt={count:0,until:now+900000}; attempts.set(ip,attempt); }
@@ -86,7 +89,7 @@ export function createApp(config) {
       }
       if(url.pathname.startsWith('/api/')) {
         if(!auth) return json(res,401,{error:'Sign in required'});
-        if(url.pathname==='/api/admin' && req.method==='GET') return json(res,200,{token:config.token,presets:Object.keys(state.presets),canUndo:!!state.undo.length});
+        if(url.pathname==='/api/admin' && req.method==='GET') return json(res,200,{authRequired:config.authRequired,...(config.authRequired?{token:config.token}:{}),presets:Object.keys(state.presets),canUndo:!!state.undo.length});
         if(url.pathname==='/api/export' && req.method==='GET') { res.setHeader('Content-Disposition','attachment; filename="pawn-control-backup.json"'); return json(res,200,{version:1,settings:settingsOf(state),session:state.session,presets:state.presets}); }
         if(url.pathname==='/api/action' && req.method==='POST') {
           const action=await body(req); commit(applyAction(state,action));
@@ -122,11 +125,10 @@ export function createApp(config) {
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   if(existsSync(join(root,'.env'))) process.loadEnvFile(join(root,'.env'));
-  const password=process.env.CONTROL_PASSWORD, token=process.env.OVERLAY_TOKEN;
-  if(!password || password.startsWith('replace-') || password.length<16 || !token || token.startsWith('replace-') || token.length<24) {
-    console.error('Set CONTROL_PASSWORD (16+ characters) and OVERLAY_TOKEN (24+ characters) in .env before starting.'); process.exit(1);
-  }
-  const app=createApp({password,token,username:process.env.CHESS_USERNAME,dataDir:resolve(process.env.DATA_DIR||join(root,'data')),secure:process.env.COOKIE_SECURE==='true',agent:process.env.CHESS_USER_AGENT});
+  let auth;
+  try { auth=authenticationConfig({authRequired:process.env.AUTH_REQUIRED,password:process.env.CONTROL_PASSWORD,token:process.env.OVERLAY_TOKEN}); }
+  catch(e) { console.error(e.message); process.exit(1); }
+  const app=createApp({...auth,username:process.env.CHESS_USERNAME,dataDir:resolve(process.env.DATA_DIR||join(root,'data')),secure:process.env.COOKIE_SECURE==='true',agent:process.env.CHESS_USER_AGENT});
   app.server.listen(Number(process.env.PORT||3000),process.env.HOST||'127.0.0.1',()=>console.log(`Pawn Control: http://${process.env.HOST||'127.0.0.1'}:${process.env.PORT||3000}/control`));
   app.server.on('error',e=>{ console.error(e.message); process.exitCode=1; });
   for(const signal of ['SIGTERM','SIGINT']) process.on(signal,()=>app.close().then(()=>process.exit(0)));
