@@ -1,3 +1,4 @@
+import {fitCanvas} from './viewport.mjs';
 import {createTipsTextControls} from './tips-text-controls.mjs';
 import {createMessageId} from './model.mjs';
 import {createCredits,createTips} from './bonus-render.mjs';
@@ -58,6 +59,6 @@ export function createBonusControls({getState,change,action,button,inputField,co
     });
     $('tips-pause').textContent=state.tipsPlayback.paused?'Resume tips':'Pause tips';tipsPreview.update(t,state.tipsPlayback);resize();
   }
-  function resize(){const shell=$('credits-preview').parentElement;if(shell.clientWidth)$('credits-preview').style.transform=`scale(${shell.clientWidth/2560})`;}
+  function resize(){const shell=$('credits-preview').parentElement;fitCanvas($('credits-preview'),shell.clientWidth,shell.clientHeight);}
   return {canLeave:textControls.canLeave,render(tab){if(tab==='credits')renderCredits();if(tab==='tips')renderTips();},resize};
 }

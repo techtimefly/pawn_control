@@ -1,0 +1,61 @@
+<!doctype html><meta charset="utf-8"><title>Viewport regression QA</title>
+<style>body{font:16px system-ui;background:#ddd}iframe{border:0;display:block;background:repeating-conic-gradient(#ccc 0 25%,#fff 0 50%) 0/24px 24px}pre{white-space:pre-wrap}button{padding:12px}</style>
+<button id="run">Run viewport and playback checks</button><pre id="results">Ready</pre><div id="frames"></div>
+<script type="module">
+const results=document.querySelector('#results'),frames=document.querySelector('#frames');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const check=(ok,message)=>{if(!ok)throw Error(message);results.textContent+='PASS '+message+'\n';};
+const near=(a,b)=>Math.abs(a-b)<.1;
+const action=async data=>{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r.ok)throw Error(await r.text());return r.json();};
+const make=async path=>{const f=document.createElement('iframe');f.style.width='1920px';f.style.height='1080px';frames.append(f);await new Promise(r=>{f.onload=r;f.src=path;});for(let i=0;i<100&&!f.contentDocument.querySelector('.credits-brand,.stats-card');i++)await sleep(30);return f;};
+const doc=f=>f.contentDocument;
+const crawl=f=>doc(f).querySelector('#credits-root .credits-crawl');
+const y=f=>new DOMMatrix(crawl(f).style.transform).m42;
+const active=(f,value)=>f.contentWindow.dispatchEvent(new CustomEvent('obsSourceActiveChanged',{detail:{active:value}}));
+async function resize(f,w,h){f.style.width=w+'px';f.style.height=h+'px';await sleep(70);check(f.contentWindow.innerWidth===w&&f.contentWindow.innerHeight===h,`actual viewport ${w} x ${h}`);}
+function bounds(f,w,h){const d=doc(f),root=d.querySelector('main'),r=root.getBoundingClientRect(),s=Math.min(w/2560,h/1440);check(near(r.width,2560*s)&&near(r.height,1440*s)&&near(r.x,(w-r.width)/2)&&near(r.y,(h-r.height)/2),'centered uniform fit');check(root.clientWidth===2560&&root.clientHeight===1440,'logical dimensions unchanged');check(f.contentWindow.getComputedStyle(d.body).backgroundColor==='rgba(0, 0, 0, 0)','transparent page and margins');check(d.documentElement.scrollWidth===w&&d.documentElement.scrollHeight===h,'no document overflow');for(const node of d.querySelectorAll('.stats-widget,.ticker-widget')){const box=node.getBoundingClientRect();check(box.left>=-.1&&box.top>=-.1&&box.right<=w+.1&&box.bottom<=h+.1,`${node.dataset.widget} inside viewport`);}}
+document.querySelector('#run').onclick=async()=>{
+ results.textContent='';frames.replaceChildren();
+ try{
+ let state=await(await fetch('/api/state')).json();state.credits.duration=60;state.credits.opacity=0;
+ await action({type:'settings',settings:{credits:state.credits}});
+ const overlay=await make('/overlay'),credit=await make('/credits'),second=await make('/credits');
+ const original=crawl(credit),before=y(credit);
+ for(const [w,h] of [[1920,1080],[1280,720],[2560,1440],[3840,2160],[2560,1400],[3440,1440],[800,600],[1080,1920]]){
+   for(const f of [overlay,credit]){await resize(f,w,h);bounds(f,w,h);}
+ }
+ check(crawl(credit)===original&&y(credit)<before,'resize preserves crawl node and continuous motion');
+ check(credit.contentWindow.getComputedStyle(doc(credit).querySelector('main')).backgroundColor==='rgba(0, 0, 0, 0)','zero-opacity credits transparent');
+ await action({type:'credits-playback',command:'pause'});await sleep(100);const paused=y(credit);
+ await resize(credit,1280,720);await sleep(150);check(y(credit)===paused,'paused position survives resize');
+ await action({type:'credits-playback',command:'play'});await sleep(150);check(y(credit)<paused,'resume continues after resize');
+ active(credit,false);await sleep(50);check(doc(credit).querySelector('main').style.visibility==='hidden','inactive source hidden');
+ const otherY=y(second);active(credit,true);await sleep(150);check(y(second)<otherY,'source activation independent');const activated=y(credit);active(credit,true);await resize(credit,2560,1400);check(y(credit)<activated,'duplicate activation and resize do not restart');
+ // Repeated state deliveries simulate an SSE reconnect with unchanged playback sequence.
+ const reconnectY=y(credit);await action({type:'settings',settings:{credits:state.credits}});await sleep(150);check(y(credit)<reconnectY,'repeated state does not restart playback');
+ const reconnectNode=crawl(credit),priorReconnect=y(credit);await fetch('/qa/reconnect',{method:'POST'});await sleep(3600);check(crawl(credit)===reconnectNode&&y(credit)<priorReconnect,'SSE disconnect and reconnect preserve playback');
+ state.credits.duration=5;state.credits.opacity=100;await action({type:'settings',settings:{credits:state.credits}});await action({type:'credits-playback',command:'restart'});await sleep(5300);
+ check(!doc(credit).querySelector('.credits-final').hidden,'final message held');
+ await resize(credit,1080,1920);bounds(credit,1080,1920);check(!doc(credit).querySelector('.credits-final').hidden&&crawl(credit).hidden,'final state survives resize');
+ check(credit.contentWindow.getComputedStyle(doc(credit).querySelector('main')).backgroundColor==='rgb(0, 0, 0)','opaque credits background confined to design');
+
+ state.widgets.credits={...state.widgets.credits,visible:true,x:640,y:360,w:1280,h:720};
+ await action({type:'settings',settings:{widgets:state.widgets}});await sleep(100);
+ await resize(overlay,1920,1080);
+ const nested=doc(overlay).querySelector('.credits-content'),nestedBox=nested.getBoundingClientRect();
+ check(near(nestedBox.width,960)&&near(nestedBox.height,540)&&nested.clientWidth===1280,'embedded credits scale exactly once');
+ const panel=await make('/control');await resize(panel,1280,900);
+ doc(panel).querySelector('[data-tab="layout"]').click();
+ const select=doc(panel).querySelector('#preview-size');select.value='1080';select.dispatchEvent(new Event('change'));await sleep(100);
+ const editor=doc(panel).querySelector('#editor-canvas'),stage=doc(panel).querySelector('#stage');
+ check(near(editor.getBoundingClientRect().width,stage.getBoundingClientRect().width)&&editor.clientWidth===2560,'1080 editor fit matches stage without changing coordinates');
+ doc(panel).querySelector('[data-tab="credits"]').click();await sleep(100);
+ const preview=doc(panel).querySelector('#credits-preview'),shell=preview.parentElement;
+ check(preview.clientWidth===2560&&preview.getBoundingClientRect().width<=shell.clientWidth+.1,'local credits preview fits without double scaling');
+ const dock=await make('/dock');await resize(dock,380,800);doc(dock).querySelector('#dock-credits-tab').click();await sleep(100);
+ const dockPreview=doc(dock).querySelector('#credits-preview');
+ check(dock.contentWindow.innerWidth===380&&dockPreview.getBoundingClientRect().width<=dockPreview.parentElement.clientWidth+.1,'380px dock credits preview fits');
+ results.textContent+='ALL CHECKS PASSED\n';
+ }catch(e){results.textContent+='FAIL '+e.stack;}
+};
+</script>
