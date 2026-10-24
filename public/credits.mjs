@@ -1,6 +1,7 @@
 import {createCredits} from './bonus-render.mjs';
+import {createCreditsSource} from './credits-source.mjs';
 const token=new URLSearchParams(location.search).get('token'),root=document.getElementById('credits-root'),error=document.getElementById('overlay-error');
-const player=createCredits(root,{autoplay:true});
+const player=createCreditsSource(createCredits(root,{autoplay:true}),window);
 if(!token){error.hidden=false;error.textContent='Copy the full credits URL from Settings.';}
 else {
   const source=new EventSource(`/api/events?token=${encodeURIComponent(token)}`);

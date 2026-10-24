@@ -96,7 +96,7 @@ export function createApp(config) {
         if(url.pathname==='/api/refresh' && req.method==='POST') { void refresh(); return json(res,202,{ok:true}); }
         return json(res,404,{error:'Not found'});
       }
-      const files={'/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/credits':'credits.html','/credits.mjs':'credits.mjs','/bonus-model.mjs':'bonus-model.mjs','/bonus-render.mjs':'bonus-render.mjs','/bonus-controls.mjs':'bonus-controls.mjs','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
+      const files={'/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/credits':'credits.html','/credits.mjs':'credits.mjs','/credits-source.mjs':'credits-source.mjs','/bonus-model.mjs':'bonus-model.mjs','/bonus-render.mjs':'bonus-render.mjs','/bonus-controls.mjs':'bonus-controls.mjs','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
       if(req.method==='GET' && files[url.pathname]) {
         const file=files[url.pathname], ext=file.split('.').pop();
         res.writeHead(200,{'Content-Type':{html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8'}[ext]});

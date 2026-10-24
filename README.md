@@ -233,12 +233,14 @@ Both widgets start hidden on the main overlay. Enable them in their editors or L
 
 1. Open **End credits** in the control panel, or **Credits** in the combined OBS dock. Edit, reorder, and enable sections and entries. The initial editable template uses the supplied hardware/software example; review it before broadcasting.
 2. Copy the dedicated **credits Browser Source URL** from that page. It is `/credits?token=YOUR_OVERLAY_TOKEN`; keep it private just like the overlay URL.
-3. Add it as a Browser Source to your ending scene, at **2560 x 1440**. Enable **Refresh browser when scene becomes active** in OBS so each scene activation restarts playback.
+3. Add it as a Browser Source to your ending scene, at **2560 x 1440**. The source restarts automatically on OBS source activation and stops/resets on deactivation. Keep **Refresh browser when scene becomes active** enabled as a reload fallback.
 4. Credits automatically scroll on page load. The default is a 60-second run followed by a held final message. Choose a total duration or scroll speed, optional looping, font sizes, spacing, colors, and background opacity in Credits settings.
+
+The dedicated source listens to the [OBS per-source activation event](https://github.com/obsproject/obs-browser#register-for-event-callbacks), independently in each browser source. Repeated active notifications do not interrupt playback. Ordinary browser previews still autoplay on load; switching browser tabs does not restart them. Use a dedicated source for the ending scene: if the same OBS source remains active in both scenes, OBS has no deactivation/reactivation to report. This behavior does not restart the main overlay or the editor preview.
 
 Advanced Scene Switcher can activate your ending scene normally; no control-panel click is needed to start credits. If a macro should leave that scene afterward, configure its delay to match your chosen total duration. Pawn Control does not switch OBS scenes or emit a completion event.
 
-**Play live**, **Pause live**, **Restart live**, and **Hide live** affect currently connected credits sources, including the main overlay credits widget when enabled. Play resumes a paused run or replays a completed run. Restart begins from the top. A newly loaded dedicated source always autoplays, independently of an earlier hide or pause command. The dedicated source works even when the main overlay credits widget is hidden.
+**Play live**, **Pause live**, **Restart live**, and **Hide live** affect currently connected credits sources, including the main overlay credits widget when enabled. Play resumes a paused run or replays a completed run. Restart begins from the top. A newly loaded dedicated source autoplays, independently of an earlier hide or pause command, unless OBS has reported it inactive. While inactive, live dock commands cannot start that source; the next activation always restarts it. The dedicated source works even when the main overlay credits widget is hidden.
 
 The editor has separate **local preview** controls: opening the editor and playing its preview do not start credits on live sources. Settings edits are shared live, so finish editing before airing the ending scene.
 
