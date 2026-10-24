@@ -279,3 +279,29 @@ The editor has separate **local preview** controls: opening the editor and playi
 Open **Chess tips** in the full panel or **Tips** in the combined dock. Add editable text with an optional title and category, enable or reorder entries, select sequential or shuffled playback, and set the rotation interval (5-300 seconds). Enable **Show tips widget**, then position it in Layout Studio. Next, Previous, Pause, and Resume controls update connected viewers. Shuffle avoids repeating the same tip immediately when multiple tips are enabled.
 
 The supplied tips are general chess advice; this widget displays your own text and does not analyze live positions. Empty or disabled tips are skipped. Tip controls and credits controls share the same existing dock login.
+
+
+### Advanced text entry for chess tips
+
+The visual editor remains the default in the full panel and combined Tips dock. Choose **Advanced text mode**, select **Structured blocks** or **Simple list**, then choose **Append** or **Replace all**. **Preview changes** validates the draft and shows the complete resulting list before **Apply preview** can save it. Replacement requires confirmation, including replacing with an empty list.
+
+Structured blocks use a blank line between tips:
+
+```text
+Title: Control the center
+Category: Opening
+Enabled: yes
+Text: Influence the central squares with your pawns and pieces.
+
+Text: Check your opponent's threats before moving.
+```
+
+Only Text is required. New tips default to enabled, with empty title/category. Enabled accepts exactly `yes` or `no`. Unknown or duplicate fields, empty Text, and exceeded limits produce line-specific errors. Limits remain 100 total tips, 120 title characters, 60 category characters, and 600 text characters.
+
+Loading existing tips adds an `ID:` line to each block. Keep these IDs when editing or reordering: they preserve identity even for duplicate content and retain omitted title/category/enabled values. Remove an ID to create a genuinely new tip; IDs are rejected for Append. Unquoted values trim surrounding whitespace. JSON quoted values preserve significant whitespace, quotes, and multiline content, for example `Text: "First line\nSecond line"`. The serializer uses this notation automatically when necessary. Existing empty tip text must be filled before structured validation succeeds.
+
+Simple list creates one new enabled tip per nonempty line. It cannot preserve titles, categories, disabled flags, or IDs. Changing formats requires confirmation and starts a fresh draft; it never silently converts existing tips into a lossy representation. All content is plain text, including HTML-like strings.
+
+Drafts stay intact during realtime updates and when switching panel/dock tabs. Leaving a dirty draft asks for confirmation; leaving/reloading the page uses the browser's unsaved-change warning. If another client changes the tips, copy any draft you need, then **Reload current tips** and preview again. Saves and undo check the expected list atomically on the server, so a stale draft cannot overwrite newer tips.
+
+**Undo last text apply** restores the preceding list while this page remains open, provided no later tip edit changed that list. It does not undo playback commands or unrelated settings. Reloading/closing the page clears this one-step undo; export a backup first if longer-term recovery is needed. Normal next/previous, pause/resume, shuffle, and retained-current-tip behavior remain unchanged.

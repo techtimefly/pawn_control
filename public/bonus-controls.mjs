@@ -1,8 +1,10 @@
+import {createTipsTextControls} from './tips-text-controls.mjs';
 import {createMessageId} from './model.mjs';
 import {createCredits,createTips} from './bonus-render.mjs';
 const node=(tag,cls,text)=>{const e=document.createElement(tag);e.className=cls;if(text!=null)e.textContent=text;return e;};
-export function createBonusControls({getState,change,action,button,inputField}) {
+export function createBonusControls({getState,change,action,button,inputField,confirmChange}) {
   const $=id=>document.getElementById(id);
+  const textControls=createTipsTextControls({getState,action,confirmChange});
   const creditsPreview=createCredits($('credits-preview'),{autoplay:false}),tipsPreview=createTips($('tips-preview'));
   for(const cmd of ['play','pause','restart','stop']){
     $(`credits-live-${cmd}`).onclick=()=>action({type:'credits-playback',command:cmd});
@@ -43,6 +45,7 @@ export function createBonusControls({getState,change,action,button,inputField}) 
     creditsPreview.update(c);resize();
   }
   function renderTips(){
+    textControls.update();
     const state=getState(),t=state.tips,host=$('tips-items'),options=$('tips-options');host.replaceChildren();options.replaceChildren();
     options.append(inputField('Rotation interval (seconds)','number',t.interval,v=>change(s=>s.tips.interval=v),{min:5,max:300}),inputField('Order','select',t.order,v=>change(s=>s.tips.order=v),{items:[['sequential','Sequential'],['shuffle','Shuffle']]}),inputField('Tip text size','number',t.font,v=>change(s=>s.tips.font=v),{min:18,max:60}),inputField('Show tips widget','checkbox',state.widgets.tips.visible,v=>change(s=>s.widgets.tips.visible=v)));
     t.items.forEach((tip,index)=>{
@@ -56,5 +59,5 @@ export function createBonusControls({getState,change,action,button,inputField}) 
     $('tips-pause').textContent=state.tipsPlayback.paused?'Resume tips':'Pause tips';tipsPreview.update(t,state.tipsPlayback);resize();
   }
   function resize(){const shell=$('credits-preview').parentElement;if(shell.clientWidth)$('credits-preview').style.transform=`scale(${shell.clientWidth/2560})`;}
-  return {render(tab){if(tab==='credits')renderCredits();if(tab==='tips')renderTips();},resize};
+  return {canLeave:textControls.canLeave,render(tab){if(tab==='credits')renderCredits();if(tab==='tips')renderTips();},resize};
 }
