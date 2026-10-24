@@ -53,6 +53,13 @@ Set deployment values in the untracked `.env` before first startup:
 
 ## Optional authentication for a trusted LAN
 
+| Setting | Control panel and OBS docks | Overlay and credits sources |
+| --- | --- | --- |
+| `AUTH_REQUIRED=true` (default) | Password login required | Read-only URL token required |
+| `AUTH_REQUIRED=false` | Opens without login | Clean URLs; no token required |
+
+Password-free mode was confirmed working by the deployment owner on October 24, 2026.
+
 Authentication is enabled by default, including for existing deployments that omit AUTH_REQUIRED. To open controls, docks, overlays, and credits without credentials, edit the untracked `.env`:
 
 ```dotenv
@@ -68,7 +75,7 @@ Anyone who can reach this deployment can view stream data, edit settings/scores,
 
 For a first-time installation without generated credentials, copy `.env.example` to `.env`, set AUTH_REQUIRED=false and CHESS_USERNAME, then configure HOST and DATA_DIR for your deployment. Existing placeholder password/token values are ignored in this mode. Setup continues to generate credentials with authentication enabled by default.
 
-For LXC, edit `/opt/pawn_control/.env` and run `systemctl restart pawn-control`; the supplied service already reads that file. For Docker Compose, edit `.env` and run `docker compose up -d --force-recreate` so the new environment is loaded. No service-file or port-mapping change is needed.
+For LXC, edit `/opt/pawn_control/.env` and run `systemctl restart pawn-control`; the supplied service already reads that file. For Docker Compose, edit `.env` and run `docker compose up -d --force-recreate` so the new environment is loaded. No service-file or port-mapping change is needed. After restarting, reload the control panel and OBS docks, then copy the clean source URLs into OBS and refresh those Browser Sources.
 
 To re-enable authentication, set AUTH_REQUIRED=true, supply a valid CONTROL_PASSWORD and OVERLAY_TOKEN, and restart/recreate again. Refresh the panel/docks and replace token-free OBS URLs with the full URLs from Settings/Credits. All prior login sessions are invalid after restart; session results and layouts stay saved. Blank, misspelled, or other AUTH_REQUIRED values fail startup rather than disabling authentication.
 
