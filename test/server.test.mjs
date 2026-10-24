@@ -10,6 +10,9 @@ test('authenticated actions persist; overlay is read-only; SSE delivers results'
   const post=(path,data,cookie)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(data)});
   try {
     assert.equal((await fetch(base+'/api/state')).status,401);
+    for(const path of ['/dock/score','/dock/cta']) {
+      const response=await fetch(base+path);assert.equal(response.status,200);assert.match(await response.text(),/Control password/);
+    }
     assert.equal((await post('/api/login',{password:'bad'})).status,401);
     const login=await post('/api/login',{password:config.password});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie').split(';')[0];
     const view=await fetch(base+`/api/state?token=${config.token}`);assert.equal(view.status,200);const data=await view.json();assert.equal(data.token,undefined);assert.equal(data.undo,undefined);
@@ -19,6 +22,8 @@ test('authenticated actions persist; overlay is read-only; SSE delivers results'
     assert.match(decoder.decode((await reader.read()).value),/event: state/);
     assert.equal((await post('/api/action',{type:'record',result:'win'},cookie)).status,200);
     const event=decoder.decode((await reader.read()).value);assert.match(event,/"result":"win"/);await reader.cancel();
+    const restart=await post('/api/action',{type:'timer',command:'restart'},cookie);assert.equal(restart.status,200);
+    const restartedTimer=(await restart.json()).state.session;assert.equal(restartedTimer.elapsed,0);assert.notEqual(restartedTimer.runningSince,null);assert.equal(restartedTimer.results.length,1);
     assert.equal((await post('/api/action',{type:'settings',settings:{theme:{}}},cookie)).status,400);
     const backup=await fetch(base+'/api/export',{headers:{cookie}});assert.equal((await backup.json()).session.results.length,1);
     await app.close();app=createApp({...config,username:'different_env_player'});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${app.server.address().port}`;

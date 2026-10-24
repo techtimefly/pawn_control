@@ -4,7 +4,7 @@ Verified locally on Windows with Node.js 24.19.0, October 23, 2026.
 
 ## Automated checks
 
-`node --test`: **15 tests passed**. Covers ordered session results, streaks, draws, corrections, nonnegative totals, reset/undo, validation, layout backup round trips, historical aggregates, missing ticker values, API cache validators, 429 backoff, serial fetching, year-boundary archives, authentication, cross-origin rejection, read-only token restrictions, SSE delivery, SQLite persistence across restart, and ticker timing/pause/scroll calculations.
+`node --test`: **20 tests passed**. Covers ordered session results, streaks, draws, corrections, nonnegative totals, reset/undo, validation, layout backup round trips, historical aggregates, missing ticker values, API cache validators, 429 backoff, serial fetching, year-boundary archives, authentication, cross-origin rejection, read-only token restrictions, SSE delivery, SQLite persistence across restart, ticker timing/pause/scroll calculations, HTTP-compatible CTA IDs, explicit timer commands, and dock routes.
 
 ## Browser checks
 
@@ -21,6 +21,8 @@ Verified locally on Windows with Node.js 24.19.0, October 23, 2026.
 - No errors/warnings in the final control-panel and overlay browser consoles.
 
 ## Deployment checks still needed
+
+Dock/timer follow-up: verified Score and CTA pages in browser views at 380 px width, password login, starting/pausing/restarting the clock, preserved scores/history after restart, and adding an additional CTA. Both dock consoles were free of errors/warnings. OBS embedding itself remains a deployment-side check.
 
 Ticker follow-up: replaced the interval/Web Animations implementation with an elapsed-time renderer and repeated scrolling content. A browser fixture verified rotation at a two-second interval and moving scroll text while receiving state updates every 250 milliseconds. Pause held the same text and transform across observations; resume and hide/show restored visible motion without console errors. Actual OBS verification is still required on the streaming PC.
 

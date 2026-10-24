@@ -35,6 +35,8 @@ For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and a
 
 ## Session rules
 
+The session clock has separate Start/Resume, Pause, and Restart controls. Restart returns only the clock to `00:00:00` and starts it immediately; scores, streak, and game history stay intact. Reset session still clears the entire session. Timer actions synchronize between the main panel and OBS docks.
+
 “Record win/loss/draw” and clicking a score append an ordered result. The minus button removes the latest matching result (or reduces a positive manual correction). Editing history recalculates streak. A draw breaks a win/loss streak. Direct total corrections do not fabricate chronological results; streak derives only from recorded results. Win rate is wins / (wins + losses + draws). Recent session results show the last ten ordered entries. Undo restores the previous session, including a reset. New sessions start at zero and snapshot available ratings. Session timer starts paused; start it when going live.
 
 ## API refresh and data meaning
@@ -142,3 +144,14 @@ Tests exercise session/streak rules, undo/reset, validation, ticker substitution
 ## Files
 
 `server.mjs` HTTP/auth/realtime server · `setup.mjs` first-run configuration · `lib/` state, storage, API adapter · `public/` control panel and overlay renderer · `test/` tests · `deploy/` LXC service · `.env.example` configuration.
+
+## OBS browser docks
+
+Add these URLs in **OBS → Docks → Custom Browser Docks** (replace CONTAINER-IP):
+
+| Dock | URL | Controls |
+| --- | --- | --- |
+| Score | `http://CONTAINER-IP:3000/dock/score` | W/L/D, plus/minus, undo, corrections, reset, result history, and start/pause/restart clock |
+| CTA | `http://CONTAINER-IP:3000/dock/cta` | Add/edit/reorder/enable messages, pause/show ticker, scrolling/rotation and appearance settings |
+
+Sign in with your control password inside OBS. These are private controller pages, not on-stream Browser Sources; do not use the read-only overlay token. Both docks share saved state with the main control panel and overlay, and retain their dock mode when refreshed. Start with a width around 360–420 px and resize as needed. Dock links are also available in the main Settings page. Continue using `/overlay?token=...` for the on-stream overlay.

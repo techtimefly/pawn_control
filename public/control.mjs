@@ -1,6 +1,8 @@
 import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId } from './model.mjs';
 import { el, renderCanvas, tickCanvas } from './render.mjs';
 const $=id=>document.getElementById(id);
+const dockMode=location.pathname==='/dock/score'?'score':location.pathname==='/dock/cta'?'cta':null;
+if(dockMode){document.body.classList.add('dock-mode',`dock-${dockMode}`);document.title=`Pawn Control · ${dockMode==='score'?'Score':'CTA'} dock`;}
 let state, admin={}, events, tab='session', selected='stats', dragging=false, queue=Promise.resolve(), toastTimer;
 const title={session:'Session overview',layout:'Layout studio',stats:'Stats & visibility',ticker:'CTA ticker',appearance:'Appearance',settings:'Settings & connections'};
 const readableTime=value=>value?new Date(value).toLocaleString():'Not available yet';
@@ -26,6 +28,7 @@ async function start() {
   try { state=await api('/api/state'); admin=await api('/api/admin'); }
   catch { showLogin(); return; }
   $('login').hidden=true; $('app').hidden=false;
+  if(dockMode){setTab(dockMode==='score'?'session':'ticker');$('dock-title').textContent=dockMode==='score'?'Score dock':'CTA dock';}
   render(); renderAdmin(); events?.close(); events=new EventSource('/api/events');
   events.addEventListener('state',event=>{accept(JSON.parse(event.data)); $('connection-dot').classList.add('connected'); $('connection-label').textContent='Server connected';});
   events.onerror=()=>{$('connection-dot').classList.remove('connected');$('connection-label').textContent='Reconnecting…';void api('/api/state').catch(()=>{});};
@@ -73,7 +76,7 @@ function inputField(label,type,value,onchange,options={}) {
 function renderSessionSummary() {
   const t=totals(state.session), total=t.win+t.loss+t.draw, streak=streaks(state.session);
   for(const k of ['win','loss','draw']) { const e=document.querySelector(`[data-score="${k}"]`);if(e)e.textContent=t[k]; }
-  $('session-clock').textContent=clock(elapsed(state.session));$('timer').textContent=state.session.runningSince?'Pause timer':'Start timer';
+  $('session-clock').textContent=clock(elapsed(state.session));$('timer').textContent=state.session.runningSince!==null?'Pause timer':state.session.elapsed>0?'Resume timer':'Start timer';
   $('session-start').textContent=`Started ${new Date(state.session.startedAt).toLocaleDateString()}`;
   const metrics=$('session-metrics');metrics.replaceChildren();
   for(const [label,value] of [['WIN RATE',total?`${Math.round(t.win/total*100)}%`:'—'],['CURRENT STREAK',streak.label],['GAMES PLAYED',total]]) { const cell=el('div','metric');cell.append(el('span','',label),el('strong','',value));metrics.append(cell); }
@@ -148,6 +151,12 @@ function renderTickerEditor() {
     row.append(head,text);host.append(row);
   });
   const options=$('ticker-options');options.replaceChildren();
+  if(dockMode==='cta') {
+    const toggle=button(document.body.classList.contains('dock-settings-open')?'Hide ticker settings':'Ticker settings',()=>{
+      const open=document.body.classList.toggle('dock-settings-open');toggle.textContent=open?'Hide ticker settings':'Ticker settings';toggle.setAttribute('aria-expanded',String(open));
+    });
+    toggle.classList.add('dock-settings-toggle');toggle.setAttribute('aria-expanded',String(document.body.classList.contains('dock-settings-open')));options.append(toggle);
+  }
   options.append(el('p','small-note',`Current mode: ${state.ticker.mode==='scroll'?'Continuous scroll — all enabled messages travel across the ticker.':`Message rotation — one message at a time, changing every ${state.ticker.interval} seconds. Choose Continuous scroll for moving text.`}${state.ticker.paused?' Ticker is paused.':''}`));
   const defs=[['mode','Display mode','select',{items:[['rotate','Message rotation'],['scroll','Continuous scroll']]}],['interval','Rotation interval (seconds)','number',{min:5,max:300}],['speed','Scroll speed (px / second)','number',{min:20,max:300}],['gap','Separator spacing (px)','number',{min:0,max:300}],['pause','Pause between scroll cycles (seconds)','number',{min:0,max:30}],['direction','Scroll direction','select',{items:[['left','Left'],['right','Right']]}],['font','Font size at 1440p','number',{min:18,max:60}],['opacity','Background opacity (%)','number',{min:0,max:100}],['separator','Message separator','text',{maxlength:12}],['paused','Pause ticker','checkbox',{}]];
   for(const [key,label,type,opts] of defs)options.append(inputField(label,type,state.ticker[key],v=>change(s=>s.ticker[key]=v),opts));
@@ -205,7 +214,8 @@ $('logout').onclick=async()=>{await api('/api/logout',{});showLogin();};
 for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>setTab(b.dataset.tab);
 for(const b of document.querySelectorAll('[data-goto]'))b.onclick=()=>setTab(b.dataset.goto);
 $('refresh').onclick=async()=>{try{await api('/api/refresh',{});toast('Refresh requested. Upstream cache and retry limits still apply.');}catch(e){toast(e.message);}};
-$('undo').onclick=()=>action({type:'undo'});$('timer').onclick=()=>action({type:'timer'});
+$('undo').onclick=()=>action({type:'undo'});$('timer').onclick=()=>action(()=>({type:'timer',command:state.session.runningSince!==null?'pause':'start'}));
+$('restart-timer').onclick=async()=>{if(await modal('Restart session clock?',[],'Restart from 00:00:00 and keep running. Scores, result history, and streak remain unchanged.'))action({type:'timer',command:'restart'});};
 $('reset').onclick=async()=>{if(await modal('Start a new session?',[],'Scores, streak, and timer return to zero. You can undo this reset.'))action({type:'reset'});};
 $('edit-totals').onclick=async()=>{const t=totals(state.session),values=await modal('Correct session totals',['win','loss','draw'].map(k=>({key:k,label:k,type:'number',value:t[k],min:0,max:10000})),'Corrections change totals; recorded result order and streak stay intact.');if(values)action({type:'totals',totals:values});};
 $('active-mode').onchange=e=>change(s=>s.activeMode=e.target.value);
