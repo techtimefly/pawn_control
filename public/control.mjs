@@ -1,3 +1,4 @@
+import {fitCanvas} from './viewport.mjs';
 import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId,WIDGET_IDS } from './model.mjs';
 import {createBonusControls} from './bonus-controls.mjs';
 import { el, renderCanvas, tickCanvas } from './render.mjs';
@@ -223,7 +224,8 @@ function resizePreviews() {
     const output=$('preview-size').value==='1080', width=output?1920:2560;
     $('stage').style.width=`${width}px`; $('stage').style.height=`${output?1080:1440}px`;
     $('stage').style.transform=`scale(${wrap.clientWidth/width})`;
-    $('editor-canvas').style.transform=output?'scale(.75)':''; $('editor-canvas').style.transformOrigin='0 0';
+    const fit=fitCanvas($('editor-canvas'),width,output?1080:1440);
+    $('preview-label').textContent=`Viewport ${width} × ${output?1080:1440} · design 2560 × 1440 · scale ${fit.scale}`;
     const guide=document.querySelector('.stage-guide');guide.style.zoom=output?'.75':'1';
   }
   if(state) {

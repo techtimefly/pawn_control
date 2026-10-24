@@ -1,6 +1,6 @@
 # Pawn Control
 
-A self-hosted chess broadcast desk for **twitch.tv/jamespawn**, pulling public Chess.com data for a configurable player. Designed for a Proxmox LXC on your LAN and a **2560 × 1440 OBS base canvas**, downscaled to 1920 × 1080.
+A self-hosted chess broadcast desk for **twitch.tv/jamespawn**, pulling public Chess.com data for a configurable player. Designed for a Proxmox LXC on your LAN, with a **2560 x 1440 logical design** that fits any OBS Browser Source size.
 
 ## Quick start
 
@@ -15,7 +15,7 @@ npm run setup
 npm start
 ```
 
-Open `http://CONTAINER-IP:3000/control` and sign in (unless AUTH_REQUIRED=false). Copy the read-only OBS URL from Settings into an OBS Browser Source, width **2560**, height **1440**. Keep the source at native size. The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
+Open `http://CONTAINER-IP:3000/control` and sign in (unless AUTH_REQUIRED=false). Copy the read-only OBS URL from Settings into an OBS Browser Source, using the width and height of the area you want it to occupy (for example **1920 x 1080**). The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
 
 Alternatively, copy `.env.example` to `.env` and set CONTROL_PASSWORD (16+ characters) and OVERLAY_TOKEN (24+ characters), or explicitly set AUTH_REQUIRED=false for trusted LAN use. Setup never overwrites an existing `.env`.
 
@@ -33,7 +33,7 @@ For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and a
 | Optional Docker deployment | Docker Engine and the Docker Compose plugin; the image includes Node, so the host does not need a separate Node installation. |
 | Networking | Outbound HTTPS to `api.chess.com`; streaming PC access to the configured container port (3000 by default). |
 | Browser/OBS | A modern browser for controls and OBS Browser Source support; custom browser docks for the controller dock pages. |
-| Canvas | OBS Browser Source width 2560, height 1440; OBS may downscale output to 1920 × 1080. |
+| Canvas | Browser Source dimensions match your intended scene area; the 2560 x 1440 design fits proportionally. |
 
 Set deployment values in the untracked `.env` before first startup:
 
@@ -212,7 +212,7 @@ Optional container image: `docker compose up -d --build` after configuring `.env
 - After correcting the unit/runtime, use `systemctl daemon-reload`, `systemctl reset-failed pawn-control`, `systemctl restart pawn-control`, then `journalctl -u pawn-control -n 50 --no-pager`.
 - An error trying to create `/opt/pawn_control/data` under the hardened service: set `.env` DATA_DIR to `/var/lib/pawn-control`, not `./data`, and restart.
 - Password/token startup rejection with AUTH_REQUIRED=true: check the length requirements above and replace example credentials. Do not paste `.env` into logs or support messages.
-- A black OBS source: verify the full token-bearing overlay URL, source dimensions 2560×1440, and visibility settings. If that exact URL works in a browser on the streaming PC but OBS stays black, restart OBS and check its browser-source logs if necessary.
+- A black OBS source: verify the full token-bearing overlay URL, source dimensions matching the intended scene area, and visibility settings. If that exact URL works in a browser on the streaming PC but OBS stays black, restart OBS and check its browser-source logs if necessary.
 - CTA additions on plain HTTP are supported; if an older UI still reports `crypto.randomUUID is not a function`, update the checkout and hard-refresh the control panel/dock.
 
 `StateDirectory` behavior is documented in [systemd.exec](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#RuntimeDirectory=).
@@ -263,7 +263,7 @@ Both widgets start hidden on the main overlay. Enable them in their editors or L
 
 1. Open **End credits** in the control panel, or **Credits** in the combined OBS dock. Edit, reorder, and enable sections and entries. The initial editable template uses the supplied hardware/software example; review it before broadcasting.
 2. Copy the dedicated **credits Browser Source URL** from that page. With authentication enabled it is `/credits?token=YOUR_OVERLAY_TOKEN`; keep it private just like the overlay URL. With AUTH_REQUIRED=false it is simply `/credits`.
-3. Add it as a Browser Source to your ending scene, at **2560 x 1440**. The source restarts automatically on OBS source activation and stops/resets on deactivation. Keep **Refresh browser when scene becomes active** enabled as a reload fallback.
+3. Add it as a Browser Source to your ending scene, with dimensions matching its intended scene area (for example **1920 x 1080**). The source restarts automatically on OBS source activation and stops/resets on deactivation. Keep **Refresh browser when scene becomes active** enabled as a reload fallback.
 4. Credits automatically scroll on page load. The default is a 60-second run followed by a held final message. Choose a total duration or scroll speed, optional looping, font sizes, spacing, colors, and background opacity in Credits settings.
 
 The dedicated source listens to the [OBS per-source activation event](https://github.com/obsproject/obs-browser#register-for-event-callbacks), independently in each browser source. Repeated active notifications do not interrupt playback. Ordinary browser previews still autoplay on load; switching browser tabs does not restart them. Use a dedicated source for the ending scene: if the same OBS source remains active in both scenes, OBS has no deactivation/reactivation to report. This behavior does not restart the main overlay or the editor preview.
@@ -305,3 +305,17 @@ Simple list creates one new enabled tip per nonempty line. It cannot preserve ti
 Drafts stay intact during realtime updates and when switching panel/dock tabs. Leaving a dirty draft asks for confirmation; leaving/reloading the page uses the browser's unsaved-change warning. If another client changes the tips, copy any draft you need, then **Reload current tips** and preview again. Saves and undo check the expected list atomically on the server, so a stale draft cannot overwrite newer tips.
 
 **Undo last text apply** restores the preceding list while this page remains open, provided no later tip edit changed that list. It does not undo playback commands or unrelated settings. Reloading/closing the page clears this one-step undo; export a backup first if longer-term recovery is needed. Normal next/previous, pause/resume, shuffle, and retained-current-tip behavior remain unchanged.
+
+## Resolution and fit policy
+
+Both /overlay and /credits contain the complete 2560 x 1440 design inside the actual Browser Source viewport. Scale is min(width / 2560, height / 1440), with equal margins on opposite sides. 1280 x 720, 1920 x 1080, 2560 x 1440 and 3840 x 2160 fill exactly. Other ratios, including 2560 x 1400, ultrawide and portrait, have transparent margins; nothing stretches or crops. Portrait is the same composition scaled down, not a new vertical layout.
+
+In OBS:
+
+1. Copy the overlay or dedicated credits URL from the controller. Set Browser Source Width and Height to the intended area in scene pixels, e.g. 1920 and 1080 for a full 1080p scene. There is no required 2560 x 1400 workaround.
+2. For an existing source with old transforms, use Transform > Reset Transform, then Transform > Fit to Screen for full-scene use. Clear any intentional crop if you want the entire source visible. For a partial-scene area, position the source at its intended location and keep its dimensions proportional.
+3. Browser Source dimensions determine the web viewport. Settings > Video > Base (Canvas) Resolution determines the scene coordinate space. Output (Scaled) Resolution determines the encoded stream; changing only output resolution does not resize a browser viewport. A 2560 x 1440 base with 1920 x 1080 output can still use a 2560 x 1440 full-scene source.
+
+The overlay page and fit margins stay transparent. Credits' configured background/opacity applies only to the fitted design rectangle (opaque black by default); set opacity to 0 for transparent credits, or place an OBS Color Source behind it if you want solid color across non-16:9 margins.
+
+Resizing updates only the outer transform: crawl geometry, speed/duration, pause/final state and source activation behavior stay unchanged. A source reload still starts a new run as before. Layout Studio and the local credits preview use the same fit math. Layout coordinates, drag math, validation, presets, and exported/imported backups remain 2560 x 1440 and require no migration.
