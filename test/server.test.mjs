@@ -14,12 +14,15 @@ test('authenticated actions persist; overlay is read-only; SSE delivers results'
       const response=await fetch(base+path);assert.equal(response.status,200);assert.match(await response.text(),/Control password/);
     }
     const credits=await fetch(base+'/credits');assert.equal(credits.status,200);assert.match(await credits.text(),/credits.mjs/);
-    for(const path of ['/bonus-model.mjs','/bonus-render.mjs','/bonus-controls.mjs','/credits.mjs','/credits-source.mjs']){const response=await fetch(base+path);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/javascript/);}
+    for(const path of ['/bonus-model.mjs','/bonus-render.mjs','/bonus-controls.mjs','/credits.mjs','/credits-source.mjs','/tips-text.mjs','/tips-text-controls.mjs']){const response=await fetch(base+path);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/javascript/);}
     assert.equal((await post('/api/login',{password:'bad'})).status,401);
     const login=await post('/api/login',{password:config.password});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie').split(';')[0];
     const view=await fetch(base+`/api/state?token=${config.token}`);assert.equal(view.status,200);const data=await view.json();assert.equal(data.token,undefined);assert.equal(data.undo,undefined);
     assert.equal((await post(`/api/action?token=${config.token}`,{type:'record',result:'win'})).status,401);
     assert.equal((await post(`/api/action?token=${config.token}`,{type:'credits-playback',command:'restart'})).status,401);
+    assert.equal((await post(`/api/action?token=${config.token}`,{type:'tips-items',expectedItems:data.tips.items,items:[]})).status,401);
+    const tipsWrite=await post('/api/action',{type:'tips-items',expectedItems:data.tips.items,items:data.tips.items},cookie);assert.equal(tipsWrite.status,200);
+    assert.equal((await post('/api/action',{type:'tips-items',expectedItems:[],items:[]},cookie)).status,400);
     const cross=await fetch(base+'/api/action',{method:'POST',headers:{'Content-Type':'application/json',cookie,origin:'http://evil.example'},body:'{}'});assert.equal(cross.status,403);
     const stream=await fetch(base+`/api/events?token=${config.token}`), reader=stream.body.getReader(), decoder=new TextDecoder();
     assert.match(decoder.decode((await reader.read()).value),/event: state/);

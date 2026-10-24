@@ -20,7 +20,8 @@ function action(a) {
   queue=queue.catch(()=>{}).then(async()=>{
     const command=typeof a==='function'?a():a;
     const result=await api('/api/action',command); accept(result.state,true);
-    admin=await api('/api/admin'); renderAdmin(); $('save-state').textContent='All changes saved';
+    try { admin=await api('/api/admin'); renderAdmin(); } catch(e) { toast(`Saved, but admin refresh failed: ${e.message}`); }
+    $('save-state').textContent='All changes saved'; return true;
   }).catch(e=>{toast(e.message);$('save-state').textContent='Change not saved'; if(state)renderTab();});
   return queue;
 }
@@ -45,7 +46,8 @@ function setConnection(connected){
   for(const id of ['connection-dot','dock-connection-dot'])$(id).classList.toggle('connected',connected);
   for(const id of ['connection-label','dock-connection-label'])$(id).textContent=connected?'Server connected':'Reconnecting…';
 }
-function setTab(next) {
+async function setTab(next) {
+  if(tab==='tips'&&next!==tab&&!await bonusControls.canLeave())return;
   tab=next;
   if(dockMode==='combined') {
     document.body.classList.toggle('dock-score',tab==='session');document.body.classList.toggle('dock-cta',tab==='ticker');
@@ -292,7 +294,7 @@ editor.addEventListener('pointerdown',e=>{
   const cancel=()=>{widget.removeEventListener('pointermove',move);widget.removeEventListener('pointerup',finish);widget.removeEventListener('pointercancel',cancel);dragging=false;renderLayout();};
   widget.addEventListener('pointermove',move);widget.addEventListener('pointerup',finish);widget.addEventListener('pointercancel',cancel);
 });
-const bonusControls=createBonusControls({getState:()=>state,change,action,button,inputField});
+const bonusControls=createBonusControls({getState:()=>state,change,action,button,inputField,confirmChange:message=>modal('Confirm tips change',[],message)});
 new ResizeObserver(resizePreviews).observe(document.querySelector('.desk'));window.addEventListener('resize',resizePreviews);
 setInterval(()=>{if(state){$('session-clock').textContent=clock(elapsed(state.session));for(const id of ['card-preview','editor-canvas'])tickCanvas($(id),state);}},1000);
 void start();
