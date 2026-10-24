@@ -20,7 +20,7 @@ export function createApp(config) {
   store.set('state',state);
   const chess=new ChessClient(store,{fetcher:config.fetcher,agent:config.agent || `PawnControl/1.0 (Chess.com username: ${state.username})`});
   const instance=randomBytes(12).toString('hex');
-  const publicState=()=>({...settingsOf(state),version:1,session:state.session,api:state.api,revision,instance});
+  const publicState=()=>({...settingsOf(state),version:1,session:state.session,api:state.api,creditsPlayback:state.creditsPlayback,tipsPlayback:state.tipsPlayback,revision,instance});
   let revision=0;
   const send=(res,event,data)=>res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   const commit=next=>{
@@ -96,7 +96,7 @@ export function createApp(config) {
         if(url.pathname==='/api/refresh' && req.method==='POST') { void refresh(); return json(res,202,{ok:true}); }
         return json(res,404,{error:'Not found'});
       }
-      const files={'/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
+      const files={'/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/credits':'credits.html','/credits.mjs':'credits.mjs','/credits-source.mjs':'credits-source.mjs','/bonus-model.mjs':'bonus-model.mjs','/bonus-render.mjs':'bonus-render.mjs','/bonus-controls.mjs':'bonus-controls.mjs','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
       if(req.method==='GET' && files[url.pathname]) {
         const file=files[url.pathname], ext=file.split('.').pop();
         res.writeHead(200,{'Content-Type':{html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8'}[ext]});

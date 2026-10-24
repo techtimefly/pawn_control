@@ -4,7 +4,7 @@ Verified locally on Windows with Node.js 24.19.0, October 23, 2026.
 
 ## Automated checks
 
-`node --test`: **20 tests passed**. Covers ordered session results, streaks, draws, corrections, nonnegative totals, reset/undo, validation, layout backup round trips, historical aggregates, missing ticker values, API cache validators, 429 backoff, serial fetching, year-boundary archives, authentication, cross-origin rejection, read-only token restrictions, SSE delivery, SQLite persistence across restart, ticker timing/pause/scroll calculations, HTTP-compatible CTA IDs, explicit timer commands, and dock routes.
+`node --test`: **29 tests passed**. Covers ordered session results, streaks, draws, corrections, nonnegative totals, reset/undo, validation, layout backup round trips, historical aggregates, missing ticker values, API cache validators, 429 backoff, serial fetching, year-boundary archives, authentication, cross-origin rejection, read-only token restrictions, SSE delivery, SQLite persistence across restart, ticker timing/pause/scroll calculations, HTTP-compatible CTA IDs, explicit timer commands, and dock routes.
 
 ## Browser checks
 
@@ -31,3 +31,13 @@ Ticker follow-up: replaced the interval/Web Animations implementation with an el
 The project has not been installed on the user's Proxmox host. Verify the Linux systemd service, LAN firewall/DNS, persistent directory permissions, and actual OBS Browser Source rendering on the streaming PC after deployment. Docker configuration is supplied but was not executed here. API archive edge cases are tested with fixtures; historical aggregates depend on whatever public archive data Chess.com provides.
 
 Preview screenshots contain disposable local test-session results. The shipped project starts with a new zero-score session and contains no preview database or credentials.
+
+
+## Credits and tips branch
+
+The 26-test suite additionally covers legacy database/settings/preset migration, old backup import, credits duration and speed calculations, play-once/loop behavior, isolated playback timelines, tip navigation/shuffle/pause, new input validation, static module routes, and read-only token restrictions for playback commands.
+
+Browser checks verified the four-tab dock with one login; dedicated credits autoplay; live pause and restart; independent local preview playback while the live source stayed paused; held final message; and tip Next/Pause/Resume controls. A five-second disposable configuration was used for timing checks. Real OBS scene activation and Advanced Scene Switcher integration still require verification on the streaming PC.
+
+
+OBS activation fix: three additional regression tests simulate per-source activation events and exercise the real credits timeline. They verify inactive reset, restart on reactivation, duplicate-event handling, activation before settings arrive, suppression of off-air dock commands, active pause/resume, source independence, and browser-only autoplay. The full 29-test suite passes; the new module is also served by the HTTP integration test. Event name/payload were checked against the official obsproject/obs-browser documentation and implementation. Actual OBS scene switching remains a streaming-PC verification step.

@@ -1,10 +1,12 @@
-import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId } from './model.mjs';
+import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId,WIDGET_IDS } from './model.mjs';
+import {createBonusControls} from './bonus-controls.mjs';
 import { el, renderCanvas, tickCanvas } from './render.mjs';
 const $=id=>document.getElementById(id);
 const dockMode=location.pathname==='/dock'||location.pathname==='/dock/'?'combined':location.pathname==='/dock/score'?'score':location.pathname==='/dock/cta'?'cta':null;
 if(dockMode){document.body.classList.add('dock-mode',`dock-${dockMode}`);document.title=`Pawn Control · ${dockMode==='combined'?'Stream':dockMode==='score'?'Score':'CTA'} dock`;}
 let state, admin={}, events, tab='session', selected='stats', dragging=false, queue=Promise.resolve(), toastTimer;
-const title={session:'Session overview',layout:'Layout studio',stats:'Stats & visibility',ticker:'CTA ticker',appearance:'Appearance',settings:'Settings & connections'};
+const title={session:'Session overview',layout:'Layout studio',stats:'Stats & visibility',ticker:'CTA ticker',credits:'End credits',tips:'Chess tips',appearance:'Appearance',settings:'Settings & connections'};
+const dockTabs=[['dock-score-tab','session'],['dock-cta-tab','ticker'],['dock-credits-tab','credits'],['dock-tips-tab','tips']];
 const readableTime=value=>value?new Date(value).toLocaleString():'Not available yet';
 function toast(message) { $('toast').textContent=message; $('toast').hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>$('toast').hidden=true,4500); }
 async function api(path, data) {
@@ -22,7 +24,7 @@ function action(a) {
   }).catch(e=>{toast(e.message);$('save-state').textContent='Change not saved'; if(state)renderTab();});
   return queue;
 }
-function change(mutator) { return action(()=>{const settings=structuredClone(Object.fromEntries(['username','channel','activeMode','showAvatar','fields','parts','goals','overrides','theme','widgets','layoutLocked','snap','ticker'].map(k=>[k,state[k]])));mutator(settings);return {type:'settings',settings};}); }
+function change(mutator) { return action(()=>{const settings=structuredClone(Object.fromEntries(['username','channel','activeMode','showAvatar','fields','parts','goals','overrides','theme','widgets','layoutLocked','snap','ticker','credits','tips'].map(k=>[k,state[k]])));mutator(settings);return {type:'settings',settings};}); }
 function showLogin() { events?.close(); $('app').hidden=true; $('login').hidden=false; }
 async function start() {
   try { state=await api('/api/state'); admin=await api('/api/admin'); }
@@ -30,7 +32,7 @@ async function start() {
   $('login').hidden=true; $('app').hidden=false;
   if(dockMode){
     let initial=dockMode==='cta'?'ticker':'session';
-    if(dockMode==='combined'){try{if(localStorage.getItem('pawn-control-dock-tab')==='ticker')initial='ticker';}catch{}}
+    if(dockMode==='combined'){try{const saved=localStorage.getItem('pawn-control-dock-tab');if(dockTabs.some(([,value])=>value===saved))initial=saved;}catch{}}
     setTab(initial);$('dock-title').textContent=dockMode==='combined'?'Stream dock':dockMode==='score'?'Score dock':'CTA dock';
   }
   render(); renderAdmin(); events?.close(); events=new EventSource('/api/events');
@@ -48,7 +50,7 @@ function setTab(next) {
   if(dockMode==='combined') {
     document.body.classList.toggle('dock-score',tab==='session');document.body.classList.toggle('dock-cta',tab==='ticker');
     try{localStorage.setItem('pawn-control-dock-tab',tab);}catch{}
-    for(const [id,value] of [['dock-score-tab','session'],['dock-cta-tab','ticker']]){
+    for(const [id,value] of dockTabs){
       const selected=tab===value;$(id).setAttribute('aria-selected',String(selected));$(id).tabIndex=selected?0:-1;
       $(`${value}-tab`).setAttribute('role','tabpanel');$(`${value}-tab`).setAttribute('aria-labelledby',id);
     }
@@ -65,7 +67,7 @@ function render(force=false) {
   if((!busy||force)&&!dragging)renderTab();
   else if(tab==='layout'&&!dragging)renderCanvas($('editor-canvas'),state,{editor:true});
   else if(tab==='ticker')renderTickerPreview();
-  const clone=structuredClone(state); for(const id of ['stats','scoreboard','ticker'])clone.widgets[id].visible=id==='stats'&&state.widgets.stats.visible;
+  const clone=structuredClone(state); for(const id of WIDGET_IDS)clone.widgets[id].visible=id==='stats'&&state.widgets.stats.visible;
   clone.widgets.stats.x=10;clone.widgets.stats.y=8;
   renderCanvas($('card-preview'),clone);
   $('api-banner').hidden=!state.api.error; $('api-banner').textContent=state.api.error?`Chess.com: ${state.api.error}. Last good values remain on screen.`:'';
@@ -79,6 +81,7 @@ function renderTab() {
   if(tab==='ticker')renderTickerEditor();
   if(tab==='appearance')renderTheme();
   if(tab==='settings')renderSettings();
+  bonusControls.render(tab);
 }
 function button(text,handler,cls='secondary') { const b=el('button',cls,text); b.type='button'; b.onclick=handler;return b; }
 function inputField(label,type,value,onchange,options={}) {
@@ -143,7 +146,7 @@ function renderLayout() {
   for(const node of $('editor-canvas').querySelectorAll('[data-widget]'))node.classList.toggle('selected',node.dataset.widget===selected);
   $('lock-layout').textContent=state.layoutLocked?'Unlock layout':'Lock layout';$('snap').checked=state.snap;
   const list=$('widget-list');list.replaceChildren();
-  for(const id of ['stats','scoreboard','ticker']) {
+  for(const id of WIDGET_IDS) {
     const row=el('div',`widget-select ${id===selected?'selected':''}`),check=el('input');check.type='checkbox';check.checked=state.widgets[id].visible;check.setAttribute('aria-label',`Show ${id}`);check.onchange=()=>change(s=>s.widgets[id].visible=check.checked);
     row.append(check,button(id,()=>{selected=id;renderLayout();},'text-button'));list.append(row);
   }
@@ -181,7 +184,7 @@ function renderTickerEditor() {
   renderTickerPreview();
 }
 function renderTickerPreview() {
-  const preview=structuredClone(state);for(const id of ['stats','scoreboard'])preview.widgets[id].visible=false;
+  const preview=structuredClone(state);for(const id of WIDGET_IDS)if(id!=='ticker')preview.widgets[id].visible=false;
   preview.widgets.ticker={...preview.widgets.ticker,x:0,y:0,w:1000,h:110};renderCanvas($('ticker-preview'),preview);resizePreviews();
 }
 function renderTheme() {
@@ -200,10 +203,12 @@ function renderSettings() {
 function renderAdmin() {
   $('undo').disabled=!admin.canUndo;
   if(admin.token)$('overlay-url').value=`${location.origin}/overlay?token=${encodeURIComponent(admin.token)}`;
+  if(admin.token)$('credits-url').value=`${location.origin}/credits?token=${encodeURIComponent(admin.token)}`;
   const select=$('layout-presets');select.replaceChildren();const first=el('option','','Load preset…');first.value='';select.append(first);
   for(const name of admin.presets||[]) { const o=el('option','',name);o.value=name;select.append(o); }
 }
 function resizePreviews() {
+  bonusControls.resize();
   const wrap=document.querySelector('.stage-wrap');
   if(wrap && !wrap.closest('[hidden]')) {
     const output=$('preview-size').value==='1080', width=output?1920:2560;
@@ -229,10 +234,10 @@ function modal(title,fields=[],message='') {
 $('login-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/login',{password:new FormData(e.target).get('password')});e.target.reset();$('login-error').textContent='';await start();}catch(err){$('login-error').textContent=err.message;}};
 $('logout').onclick=async()=>{await api('/api/logout',{});showLogin();};
 $('dock-logout').onclick=$('logout').onclick;
-for(const id of ['dock-score-tab','dock-cta-tab'])$(id).onkeydown=e=>{
+for(const [id] of dockTabs)$(id).onkeydown=e=>{
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();
-  const next=e.key==='Home'?'session':e.key==='End'?'ticker':tab==='session'?'ticker':'session';
-  setTab(next);$(next==='session'?'dock-score-tab':'dock-cta-tab').focus();
+  const index=dockTabs.findIndex(([,value])=>value===tab),next=e.key==='Home'?0:e.key==='End'?dockTabs.length-1:(index+(e.key==='ArrowLeft'?-1:1)+dockTabs.length)%dockTabs.length;
+  setTab(dockTabs[next][1]);$(dockTabs[next][0]).focus();
 };
 for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>setTab(b.dataset.tab);
 for(const b of document.querySelectorAll('[data-goto]'))b.onclick=()=>setTab(b.dataset.goto);
@@ -251,6 +256,8 @@ $('delete-layout').onclick=async()=>{const value=await modal('Delete layout pres
 $('add-message').onclick=()=>change(s=>s.ticker.messages.push({id:createMessageId(),text:'Follow {channel} for more chess!',enabled:true}));
 $('identity-form').onsubmit=async e=>{e.preventDefault();const username=$('username').value.trim(),channel=$('channel').value.trim();if(username!==state.username&&!await modal('Change Chess.com player?',[],'Cached stats and rating baselines will be cleared. Session scores remain.'))return;change(s=>{s.username=username;s.channel=channel;});};
 $('copy-url').onclick=async()=>{try{await navigator.clipboard.writeText($('overlay-url').value);toast('OBS URL copied.');}catch{toast('Clipboard unavailable here. Reveal the URL and copy it manually.');}};
+$('copy-credits-url').onclick=async()=>{try{await navigator.clipboard.writeText($('credits-url').value);toast('Credits URL copied.');}catch{toast('Reveal the credits URL and copy it manually.');}};
+$('reveal-credits-url').onclick=()=>{const input=$('credits-url');input.type=input.type==='password'?'text':'password';$('reveal-credits-url').textContent=input.type==='password'?'Reveal URL':'Hide URL';};
 $('reveal-url').onclick=()=>{const input=$('overlay-url');input.type=input.type==='password'?'text':'password';$('reveal-url').textContent=input.type==='password'?'Reveal URL':'Hide URL';};
 $('open-overlay').onclick=()=>window.open($('overlay-url').value,'_blank','noopener,noreferrer');
 $('export').onclick=()=>{location.href='/api/export';};
@@ -278,6 +285,7 @@ editor.addEventListener('pointerdown',e=>{
   const cancel=()=>{widget.removeEventListener('pointermove',move);widget.removeEventListener('pointerup',finish);widget.removeEventListener('pointercancel',cancel);dragging=false;renderLayout();};
   widget.addEventListener('pointermove',move);widget.addEventListener('pointerup',finish);widget.addEventListener('pointercancel',cancel);
 });
+const bonusControls=createBonusControls({getState:()=>state,change,action,button,inputField});
 new ResizeObserver(resizePreviews).observe(document.querySelector('.desk'));window.addEventListener('resize',resizePreviews);
 setInterval(()=>{if(state){$('session-clock').textContent=clock(elapsed(state.session));for(const id of ['card-preview','editor-canvas'])tickCanvas($(id),state);}},1000);
 void start();

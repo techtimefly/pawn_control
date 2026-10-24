@@ -1,4 +1,6 @@
+import {bonusDefaults} from './bonus-model.mjs';
 export const MODES = ['blitz', 'rapid', 'bullet'];
+export const WIDGET_IDS = ['stats','scoreboard','ticker','tips','credits'];
 // CTA identifiers are local record keys, not authentication credentials.
 let messageSequence=0;
 export function createMessageId(cryptoProvider=globalThis.crypto) {
@@ -25,13 +27,16 @@ export const PRESETS = {
   Full: Object.keys(FIELDS)
 };
 export function defaults() {
+  const bonus=bonusDefaults();
   return {
+    credits:bonus.credits,tips:bonus.tips,creditsPlayback:bonus.creditsPlayback,tipsPlayback:bonus.tipsPlayback,
     version: 1, username: 'your_chess_username', channel: 'jamespawn', activeMode: 'blitz', showAvatar: false,
     fields: Object.keys(FIELDS).map(id => ({ id, visible: ['username','blitz','rapid','bullet','session','streak'].includes(id) })),
     parts: { win: true, loss: true, draw: true },
     goals: { blitz: 1500, rapid: 1500, bullet: 1000 }, overrides: { blitz: null, rapid: null, bullet: null },
     theme: { accent: '#27baf3', background: '#272f40', foreground: '#f2f4fa', muted: '#a5b2c6', streak: '#ff622d', opacity: 95, radius: 22, font: 26, padding: 26, gap: 14 },
     widgets: {
+      ...bonus.widgets,
       stats: { x: 2070, y: 70, w: 430, h: 390, scale: 1, visible: true, locked: false, z: 2 },
       scoreboard: { x: 70, y: 1190, w: 650, h: 160, scale: 1, visible: false, locked: false, z: 3 },
       ticker: { x: 70, y: 1350, w: 2420, h: 60, scale: 1, visible: true, locked: false, z: 1 }

@@ -212,14 +212,40 @@ Tests exercise session/streak rules, undo/reset, validation, ticker substitution
 
 ## OBS browser docks
 
-Recommended: add **`http://CONTAINER-IP:3000/dock`** once for a combined dock with **Score / CTA** tabs and a single login. Switching tabs stays on the same page and authenticated connection. The selected tab is remembered in that browser across refreshes when local storage is available. The header shows connection status and a Sign out button. The session still expires normally after 12 hours. Separate dock URLs remain available below.
+Recommended: add **`http://CONTAINER-IP:3000/dock`** once for a combined dock with **Score / CTA / Credits / Tips** tabs and a single login. Switching tabs stays on the same page and authenticated connection. The selected tab is remembered in that browser across refreshes when local storage is available. The header shows connection status and a Sign out button. The session still expires normally after 12 hours. Separate dock URLs remain available below.
 
 Add these URLs in **OBS → Docks → Custom Browser Docks** (replace CONTAINER-IP):
 
 | Dock | URL | Controls |
 | --- | --- | --- |
-| Combined | `http://CONTAINER-IP:3000/dock` | Score and CTA tabs, one login, remembered tab, shared connection status and sign-out |
+| Combined | `http://CONTAINER-IP:3000/dock` | Score, CTA, Credits and Tips tabs, one login, remembered tab, shared connection status and sign-out |
 | Score | `http://CONTAINER-IP:3000/dock/score` | W/L/D, plus/minus, undo, corrections, reset, result history, and start/pause/restart clock |
 | CTA | `http://CONTAINER-IP:3000/dock/cta` | Add/edit/reorder/enable messages, pause/show ticker, scrolling/rotation and appearance settings |
 
 Sign in with your control password inside OBS. These are private controller pages, not on-stream Browser Sources; do not use the read-only overlay token. Both docks share saved state with the main control panel and overlay, and retain their dock mode when refreshed. Start with a width around 360–420 px and resize as needed. Dock links are also available in the main Settings page. Continue using `/overlay?token=...` for the on-stream overlay.
+
+
+## End credits and chess tips
+
+Both widgets start hidden on the main overlay. Enable them in their editors or Layout Studio; drag, resize, lock, layer, and save them with a layout. Existing settings and saved layouts upgrade without resetting scores. Imported older backups also receive the new defaults.
+
+### End credits Browser Source
+
+1. Open **End credits** in the control panel, or **Credits** in the combined OBS dock. Edit, reorder, and enable sections and entries. The initial editable template uses the supplied hardware/software example; review it before broadcasting.
+2. Copy the dedicated **credits Browser Source URL** from that page. It is `/credits?token=YOUR_OVERLAY_TOKEN`; keep it private just like the overlay URL.
+3. Add it as a Browser Source to your ending scene, at **2560 x 1440**. The source restarts automatically on OBS source activation and stops/resets on deactivation. Keep **Refresh browser when scene becomes active** enabled as a reload fallback.
+4. Credits automatically scroll on page load. The default is a 60-second run followed by a held final message. Choose a total duration or scroll speed, optional looping, font sizes, spacing, colors, and background opacity in Credits settings.
+
+The dedicated source listens to the [OBS per-source activation event](https://github.com/obsproject/obs-browser#register-for-event-callbacks), independently in each browser source. Repeated active notifications do not interrupt playback. Ordinary browser previews still autoplay on load; switching browser tabs does not restart them. Use a dedicated source for the ending scene: if the same OBS source remains active in both scenes, OBS has no deactivation/reactivation to report. This behavior does not restart the main overlay or the editor preview.
+
+Advanced Scene Switcher can activate your ending scene normally; no control-panel click is needed to start credits. If a macro should leave that scene afterward, configure its delay to match your chosen total duration. Pawn Control does not switch OBS scenes or emit a completion event.
+
+**Play live**, **Pause live**, **Restart live**, and **Hide live** affect currently connected credits sources, including the main overlay credits widget when enabled. Play resumes a paused run or replays a completed run. Restart begins from the top. A newly loaded dedicated source autoplays, independently of an earlier hide or pause command, unless OBS has reported it inactive. While inactive, live dock commands cannot start that source; the next activation always restarts it. The dedicated source works even when the main overlay credits widget is hidden.
+
+The editor has separate **local preview** controls: opening the editor and playing its preview do not start credits on live sources. Settings edits are shared live, so finish editing before airing the ending scene.
+
+### Chess tips
+
+Open **Chess tips** in the full panel or **Tips** in the combined dock. Add editable text with an optional title and category, enable or reorder entries, select sequential or shuffled playback, and set the rotation interval (5-300 seconds). Enable **Show tips widget**, then position it in Layout Studio. Next, Previous, Pause, and Resume controls update connected viewers. Shuffle avoids repeating the same tip immediately when multiple tips are enabled.
+
+The supplied tips are general chess advice; this widget displays your own text and does not analyze live positions. Empty or disabled tips are skipped. Tip controls and credits controls share the same existing dock login.

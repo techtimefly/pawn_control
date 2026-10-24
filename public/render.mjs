@@ -1,5 +1,6 @@
 import { createTicker } from './ticker.mjs';
-import { FIELDS, rating, totals, streaks, elapsed, clock, tickerMessages, historyStats } from './model.mjs';
+import {createCredits,createTips} from './bonus-render.mjs';
+import { FIELDS, rating, totals, streaks, elapsed, clock, tickerMessages, historyStats,WIDGET_IDS } from './model.mjs';
 export const el=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; };
 const rgba=(hex,opacity)=>`${hex}${Math.round(opacity/100*255).toString(16).padStart(2,'0')}`;
 export function statValues(s) {
@@ -21,13 +22,22 @@ export function renderCanvas(canvas,s,{editor=false}={}) {
   canvas.style.setProperty('--streak',s.theme.streak); canvas.style.setProperty('--radius',`${s.theme.radius}px`);
   canvas.style.setProperty('--font-size',`${s.theme.font}px`); canvas.style.setProperty('--padding',`${s.theme.padding}px`); canvas.style.setProperty('--row-gap',`${s.theme.gap}px`);
   const values=statValues(s);
-  for(const id of ['stats','scoreboard','ticker']) {
+  for(const id of WIDGET_IDS) {
     let wrapper=canvas.querySelector(`[data-widget="${id}"]`);
     if(!wrapper) { wrapper=el('div',`broadcast-widget ${id}-widget`); wrapper.dataset.widget=id; canvas.append(wrapper); }
     const w=s.widgets[id];
     wrapper.style.cssText=`left:${w.x}px;top:${w.y}px;width:${w.w}px;height:${w.h}px;z-index:${w.z};display:${w.visible?'block':'none'}`;
     wrapper.classList.toggle('position-locked',s.layoutLocked||w.locked);
-    if(id==='ticker') { renderTicker(wrapper,s); }
+    if(id==='credits') {
+      if(!wrapper._credits){const content=el('div','credits-content');wrapper.append(content);wrapper._credits=createCredits(content,{autoplay:w.visible});}
+      if(w.visible&&!wrapper._wasVisible)wrapper._credits.command('restart');
+      wrapper._wasVisible=w.visible;wrapper._credits.update({...s.credits,font:s.credits.font*w.scale,heading:s.credits.heading*w.scale,brandSize:s.credits.brandSize*w.scale,gap:s.credits.gap*w.scale},s.creditsPlayback);
+    }
+    else if(id==='tips') {
+      if(!wrapper._tips){const content=el('div','tips-content');wrapper.append(content);wrapper._tips=createTips(content);}
+      wrapper._tips.update({...s.tips,font:s.tips.font*w.scale},s.tipsPlayback);
+    }
+    else if(id==='ticker') { renderTicker(wrapper,s); }
     else {
       wrapper.replaceChildren(); const card=el('div',`broadcast-card ${id}-card`); wrapper.append(card); card.style.width=`${w.w/w.scale}px`;
       if(id==='stats') {
