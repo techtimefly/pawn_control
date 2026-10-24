@@ -1,3 +1,4 @@
+import {socialDefaults,socialWidget} from './socials-model.mjs';
 export function bonusDefaults() {
   const section=(id,title,entries)=>({id,title,enabled:true,entries:entries.map(([label,detail],i)=>({id:`${id}-${i}`,label,detail,enabled:true}))});
   return {
@@ -19,7 +20,7 @@ export function bonusDefaults() {
 }
 // Add only the new fields to older settings/backups; existing settings stay intact.
 export function upgradeBonusSettings(settings) {
-  const d=bonusDefaults();return {...settings,credits:settings.credits??d.credits,tips:settings.tips??d.tips,widgets:{...d.widgets,...settings.widgets}};
+  const d=bonusDefaults();return {...settings,socials:settings.socials??socialDefaults(),credits:settings.credits??d.credits,tips:settings.tips??d.tips,widgets:{socials:socialWidget(),...d.widgets,...settings.widgets}};
 }
 export function creditsProgress(ms,viewportHeight,contentHeight,options) {
   const finalY=Math.max(0,(viewportHeight-contentHeight)/2);
