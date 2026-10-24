@@ -1,6 +1,6 @@
 # Pawn Control
 
-A self-hosted chess broadcast desk for **twitch.tv/jamespawn**, pulling public Chess.com data for a configurable player. Designed for a Proxmox LXC on your LAN, with a **2560 x 1440 logical design** that fits any OBS Browser Source size.
+A self-hosted chess broadcast desk for **twitch.tv/jamespawn**, pulling public Chess.com data for a configurable player. Runs locally or as a Linux service on your LAN, with a **2560 x 1440 logical design** that fits any OBS Browser Source size.
 
 ## Quick start
 
@@ -15,13 +15,13 @@ npm run setup
 npm start
 ```
 
-Open `http://CONTAINER-IP:3000/control` and sign in (unless AUTH_REQUIRED=false). Copy the read-only OBS URL from Settings into an OBS Browser Source, using the width and height of the area you want it to occupy (for example **1920 x 1080**). The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
+Open `http://SERVER-IP:3000/control` and sign in (unless AUTH_REQUIRED=false). Copy the read-only OBS URL from Settings into an OBS Browser Source, using the width and height of the area you want it to occupy (for example **1920 x 1080**). The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
 
 Alternatively, copy `.env.example` to `.env` and set CONTROL_PASSWORD (16+ characters) and OVERLAY_TOKEN (24+ characters), or explicitly set AUTH_REQUIRED=false for trusted LAN use. Setup never overwrites an existing `.env`.
 
 Set `CHESS_USERNAME` in the untracked `.env` for the first startup. It seeds a new database only. After that, the saved username in Settings takes precedence; changing the environment variable does not overwrite an existing player or session. A missing/placeholder username blocks first startup rather than fetching a sample account. Keep personal values out of `.env.example`.
 
-For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and allow TCP 3000 from your streaming PC. No Twitch credentials or Chess.com API key are needed. This app does not connect to Twitch chat.
+For a local preview, keep HOST=127.0.0.1. For access from another device, set HOST=0.0.0.0 and allow TCP 3000 from your streaming PC. No Twitch credentials or Chess.com API key are needed. This app does not connect to Twitch chat.
 
 ## Requirements and configuration
 
@@ -29,9 +29,9 @@ For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and a
 | --- | --- |
 | Runtime | Node.js 24+ with built-in SQLite; Node 24 LTS is recommended. npm is used for the provided scripts; `npm install` is not needed. |
 | Repository access | Git and permission to clone this private repository; the documented SSH URL requires GitHub SSH authentication. |
-| LXC service | Debian/Ubuntu with systemd, a `pawn` service user, and Node executable by that user outside `/root`. `curl` is used for the health checks below. |
+| Linux service | Debian/Ubuntu with systemd, a `pawn` service user, and Node executable by that user outside `/root`. `curl` is used for the health checks below. |
 | Optional Docker deployment | Docker Engine and the Docker Compose plugin; the image includes Node, so the host does not need a separate Node installation. |
-| Networking | Outbound HTTPS to `api.chess.com`; streaming PC access to the configured container port (3000 by default). |
+| Networking | Outbound HTTPS to `api.chess.com`; streaming PC access to the configured server port (3000 by default). |
 | Browser/OBS | A modern browser for controls and OBS Browser Source support; custom browser docks for the controller dock pages. |
 | Canvas | Browser Source dimensions match your intended scene area; the 2560 x 1440 design fits proportionally. |
 
@@ -68,14 +68,14 @@ AUTH_REQUIRED=false
 
 Restart the app/service (or recreate the Compose container). CONTROL_PASSWORD and OVERLAY_TOKEN can be omitted or left unchanged in this mode; they are ignored. The control panel and all dock pages open immediately, sign-out buttons are hidden, and Settings and the dock identify that authentication is disabled. Copy the clean Browser Source URLs from the UI:
 
-- `http://CONTAINER-IP:3000/overlay`
-- `http://CONTAINER-IP:3000/credits`
+- `http://SERVER-IP:3000/overlay`
+- `http://SERVER-IP:3000/credits`
 
 Anyone who can reach this deployment can view stream data, edit settings/scores, control playback, and export/import backups. Use this mode only on a trusted LAN or behind your own access controls. JSON request validation and cross-origin POST rejection remain enabled. AUTH_REQUIRED is deployment configuration, not an editable web setting or part of settings backups.
 
 For a first-time installation without generated credentials, copy `.env.example` to `.env`, set AUTH_REQUIRED=false and CHESS_USERNAME, then configure HOST and DATA_DIR for your deployment. Existing placeholder password/token values are ignored in this mode. Setup continues to generate credentials with authentication enabled by default.
 
-For LXC, edit `/opt/pawn_control/.env` and run `systemctl restart pawn-control`; the supplied service already reads that file. For Docker Compose, edit `.env` and run `docker compose up -d --force-recreate` so the new environment is loaded. No service-file or port-mapping change is needed. After restarting, reload the control panel and OBS docks, then copy the clean source URLs into OBS and refresh those Browser Sources.
+For the Linux systemd service, edit `/opt/pawn_control/.env` and run `systemctl restart pawn-control`; the supplied service already reads that file. For Docker Compose, edit `.env` and run `docker compose up -d --force-recreate` so the new environment is loaded. No service-file or port-mapping change is needed. After restarting, reload the control panel and OBS docks, then copy the clean source URLs into OBS and refresh those Browser Sources.
 
 To re-enable authentication, set AUTH_REQUIRED=true, supply a valid CONTROL_PASSWORD and OVERLAY_TOKEN, and restart/recreate again. Refresh the panel/docks and replace token-free OBS URLs with the full URLs from Settings/Credits. All prior login sessions are invalid after restart; session results and layouts stay saved. Blank, misspelled, or other AUTH_REQUIRED values fail startup rather than disabling authentication.
 
@@ -131,11 +131,11 @@ New installations default to continuous scrolling. Existing installations retain
 
 `{username}`, `{channel}`, `{wins}`, `{losses}`, `{draws}`, `{streak}`, `{blitz_rating}`, `{rapid_rating}`, `{bullet_rating}`, `{blitz_goal}`, `{rapid_goal}`, `{bullet_goal}`. A message with an unavailable rating is skipped. Unknown tokens remain visible so they can be corrected. No enabled/usable messages means the ticker hides. All messages are plain text, never HTML.
 
-## Proxmox LXC deployment
+## Linux systemd service setup
 
-Suggested starting allocation: unprivileged Debian/Ubuntu container, 1 vCPU, 512 MB–1 GB RAM, 4 GB disk, DHCP reservation or static LAN address. Install Node.js 24 LTS using your usual trusted package source and verify `node --version` is v24 or newer. Docker/nesting is not required.
+These commands assume Debian/Ubuntu Linux with systemd running as the service manager. They work on bare metal, a VM, or a container that supports systemd; they do not apply to Windows/macOS or minimal containers without systemd. Use the quick start for local development or the optional Docker setup below instead. Install Git, curl, and Node.js 24 LTS using your trusted package source, and verify `node --version` is v24 or newer.
 
-The repository and installation directory use the same name: `pawn_control`. The service expects the checkout at `/opt/pawn_control`. Install Git and configure access to the private repository on the container first.
+The repository and installation directory use the same name: `pawn_control`. The service expects the checkout at `/opt/pawn_control`. Install Git and configure access to the private repository on the server first.
 
 Before installing the unit, verify the system-wide runtime:
 
@@ -147,14 +147,14 @@ node --version
 
 The service requires Node.js 24+ at `/usr/bin/node`. If Node exists elsewhere (for example `/usr/local/bin/node`), set `ExecStart` to that absolute path before copying the unit. A root-only nvm installation under `/root` is not accessible to the `pawn` service with `ProtectHome=true`; install Node system-wide instead. If no Node executable is found, install Node.js 24 LTS from a trusted distribution source or the [official Node downloads](https://nodejs.org/en/download) before continuing.
 
-As root inside the container, for a new installation:
+Run the following in a root shell (for example, `sudo -i`) on the Linux server for a new installation:
 
 ```sh
-useradd --system --home /opt/pawn_control --shell /usr/sbin/nologin pawn
+useradd --system --user-group --home /opt/pawn_control --shell /usr/sbin/nologin pawn
 mkdir -p /opt /var/lib/pawn-control
 git clone git@github.com:techtimefly/pawn_control.git /opt/pawn_control
 cp /opt/pawn_control/.env.example /opt/pawn_control/.env
-# Edit /opt/pawn_control/.env with a 16+ character password, 24+ character token,
+# Replace the example placeholders in /opt/pawn_control/.env with a 16+ character password, 24+ character token,
 # and HOST=0.0.0.0. Generate random credentials with your password manager.
 # For trusted LAN use without credentials, set AUTH_REQUIRED=false instead.
 # Set CHESS_USERNAME to your Chess.com username before first startup.
@@ -201,7 +201,9 @@ curl --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/health
 ss -tlnp | grep ':3000'
 ```
 
-Expected health response: `{"ok":true}`. Replace port 3000 above if you configured another port. Then open `http://CONTAINER-IP:3000/control` from the streaming PC. For ordinary code updates, pull and restart; reload the control panel/dock and refresh the OBS Browser Source to load changed frontend modules. Copy/reload the service unit when its configuration changes, as shown above. Preserve `.env` and DATA_DIR; do not rerun first-time setup to upgrade.
+Expected health response: `{"ok":true}`. Replace port 3000 above if you configured another port. Then open `http://SERVER-IP:3000/control` from the streaming PC. For ordinary code updates, pull and restart; reload the control panel/dock and refresh the OBS Browser Source to load changed frontend modules. Copy/reload the service unit when its configuration changes, as shown above. Preserve `.env` and DATA_DIR; do not rerun first-time setup to upgrade.
+
+### Optional Docker deployment
 
 Optional container image: `docker compose up -d --build` after configuring `.env` with real credentials and CHESS_USERNAME. Keep PORT=3000 for the supplied `3000:3000` mapping, or adjust the mapping to match. Compose sets HOST=0.0.0.0 and DATA_DIR=/app/data; a named volume holds SQLite data. The image uses Node 24. This deployment does not use the systemd unit.
 
@@ -221,11 +223,25 @@ Optional container image: `docker compose up -d --build` after configuring `.env
 
 ### Secrets and Git
 
-Commit `.env.example` with placeholders, never the real `.env`. With authentication enabled, the two application secrets are CONTROL_PASSWORD and OVERLAY_TOKEN. Generate them on the LXC with `npm run setup`, or supply them through the service environment. Chess.com public data needs no API key, and the Twitch channel link needs no Twitch token. Keep SSH deployment keys outside the project and never put them in browser code. If GitHub Actions deployment is added, store deployment credentials in GitHub Actions secrets, not repository files.
+Commit `.env.example` with placeholders, never the real `.env`. With authentication enabled, the two application secrets are CONTROL_PASSWORD and OVERLAY_TOKEN. Generate them in a local checkout with `npm run setup`, or supply them through the service environment. Chess.com public data needs no API key, and the Twitch channel link needs no Twitch token. Keep SSH deployment keys outside the project and never put them in browser code. If GitHub Actions deployment is added, store deployment credentials in GitHub Actions secrets, not repository files.
 
 The ignore rules exclude `.env` variants (except `.env.example`), runtime data, databases, logs, and common private-key files. The Docker build context excludes these too. Ignore rules do not remove already tracked secrets; if a real credential is ever committed, rotate it and remove it from history as appropriate. Application files live at the repository root; development preview data and credentials must remain outside the repository.
 
-Include DATA_DIR and `.env` in protected Proxmox backups. SQLite uses WAL; stop the service for a manual file copy, or use a consistent container snapshot. The Settings export is a portable settings/session backup, excluding credentials and API cache. Import validates and replaces settings/session, leaving credentials unchanged. Saved layouts include appearance and widget configuration, not scores. Keep tokens out of screenshots and source control. Rotate the overlay token in `.env` and restart if leaked.
+Back up the entire DATA_DIR and `.env` to protected storage. SQLite uses WAL, so stop the service before copying the data directory and restart it after the copy finishes; copying only the main database while the app runs is not a consistent backup. For the supplied Linux service, a manual backup can be made from a root shell as follows:
+
+```sh
+backup_dir="/var/backups/pawn-control/$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+systemctl stop pawn-control
+cp -a /var/lib/pawn-control "$backup_dir/data"
+cp -p /opt/pawn_control/.env "$backup_dir/.env"
+systemctl start pawn-control
+systemctl status pawn-control
+```
+
+Check both copy commands succeeded before relying on the backup. Keep the backup directory private: it contains credentials. To restore, stop the service, restore the saved data directory and `.env` to their original paths, ensure the data belongs to `pawn:pawn` and `.env` is `root:pawn` with mode `640`, then start the service and check `/health`. Preserve a copy of the current data before restoring. For Docker, stop the Compose service before backing up its named data volume and restart it afterward; the Linux paths above apply only to the supplied systemd unit.
+
+The Settings export is a portable settings/session backup, excluding credentials and API cache. Import validates and replaces settings/session, leaving credentials unchanged. Saved layouts include appearance and widget configuration, not scores. Keep tokens out of screenshots and source control. Rotate the overlay token in `.env` and restart if leaked.
 
 ## Development and verification
 
@@ -234,23 +250,23 @@ npm test
 npm start
 ```
 
-Tests exercise session/streak rules, undo/reset, validation, ticker substitutions, cache behavior, authentication, read-only overlay access, persistence, and realtime delivery. Browser QA should also check a real OBS source for transparency, readability at 1080p, reconnection, and network access from the streaming PC. This project can be prepared locally without access to your Proxmox host; deployment and real OBS verification remain host-side steps.
+Tests exercise session/streak rules, undo/reset, validation, ticker substitutions, cache behavior, authentication, read-only overlay access, persistence, and realtime delivery. Browser QA should also check a real OBS source for transparency, readability at 1080p, reconnection, and network access from the streaming PC. This project can be prepared locally without access to your Linux server; deployment and real OBS verification remain host-side steps.
 
 ## Files
 
-`server.mjs` HTTP/auth/realtime server · `setup.mjs` first-run configuration · `lib/` state, storage, API adapter · `public/` control panel and overlay renderer · `test/` tests · `deploy/` LXC service · `.env.example` configuration.
+`server.mjs` HTTP/auth/realtime server · `setup.mjs` first-run configuration · `lib/` state, storage, API adapter · `public/` control panel and overlay renderer · `test/` tests · `deploy/` Linux systemd service · `.env.example` configuration.
 
 ## OBS browser docks
 
-Recommended: add **`http://CONTAINER-IP:3000/dock`** once for a combined dock with **Score / CTA / Credits / Tips** tabs and a single login when authentication is enabled. With AUTH_REQUIRED=false no login is needed. Switching tabs stays on the same page and connection. The selected tab is remembered in that browser across refreshes when local storage is available. The header shows connection status, plus Sign out when authentication is enabled or an authentication-disabled indicator otherwise. With authentication enabled, the session expires normally after 12 hours. Separate dock URLs remain available below.
+Recommended: add **`http://SERVER-IP:3000/dock`** once for a combined dock with **Score / CTA / Credits / Tips** tabs and a single login when authentication is enabled. With AUTH_REQUIRED=false no login is needed. Switching tabs stays on the same page and connection. The selected tab is remembered in that browser across refreshes when local storage is available. The header shows connection status, plus Sign out when authentication is enabled or an authentication-disabled indicator otherwise. With authentication enabled, the session expires normally after 12 hours. Separate dock URLs remain available below.
 
-Add these URLs in **OBS → Docks → Custom Browser Docks** (replace CONTAINER-IP):
+Add these URLs in **OBS → Docks → Custom Browser Docks** (replace SERVER-IP):
 
 | Dock | URL | Controls |
 | --- | --- | --- |
-| Combined | `http://CONTAINER-IP:3000/dock` | Score, CTA, Credits and Tips tabs, one login, remembered tab, shared connection status and sign-out |
-| Score | `http://CONTAINER-IP:3000/dock/score` | W/L/D, plus/minus, undo, corrections, reset, result history, and start/pause/restart clock |
-| CTA | `http://CONTAINER-IP:3000/dock/cta` | Add/edit/reorder/enable messages, pause/show ticker, scrolling/rotation and appearance settings |
+| Combined | `http://SERVER-IP:3000/dock` | Score, CTA, Credits and Tips tabs, one login, remembered tab, shared connection status and sign-out |
+| Score | `http://SERVER-IP:3000/dock/score` | W/L/D, plus/minus, undo, corrections, reset, result history, and start/pause/restart clock |
+| CTA | `http://SERVER-IP:3000/dock/cta` | Add/edit/reorder/enable messages, pause/show ticker, scrolling/rotation and appearance settings |
 
 Sign in with your control password inside OBS when authentication is enabled. These are controller pages, not on-stream Browser Sources; do not use the read-only overlay token. Both docks share saved state with the main control panel and overlay, and retain their dock mode when refreshed. Start with a width around 360–420 px and resize as needed. Dock links are also available in the main Settings page. Continue using `/overlay?token=...` for the on-stream overlay, or `/overlay` with AUTH_REQUIRED=false.
 
