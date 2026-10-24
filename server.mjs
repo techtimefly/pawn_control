@@ -1,3 +1,6 @@
+import {randomUUID} from 'node:crypto';
+import {validatePNG,validateIconRegistry,iconReferenced} from './lib/social-icons.mjs';
+import {PLATFORMS} from './public/socials-model.mjs';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -22,7 +25,7 @@ export function createApp(config) {
   store.set('state',state);
   const chess=new ChessClient(store,{fetcher:config.fetcher,agent:config.agent || `PawnControl/1.0 (Chess.com username: ${state.username})`});
   const instance=randomBytes(12).toString('hex');
-  const publicState=()=>({...settingsOf(state),version:1,session:state.session,api:state.api,creditsPlayback:state.creditsPlayback,tipsPlayback:state.tipsPlayback,revision,instance});
+  const publicState=()=>({...settingsOf(state),version:1,session:state.session,api:state.api,creditsPlayback:state.creditsPlayback,tipsPlayback:state.tipsPlayback,socialsPlayback:state.socialsPlayback,revision,instance});
   let revision=0;
   const send=(res,event,data)=>res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   const commit=next=>{
@@ -37,7 +40,7 @@ export function createApp(config) {
   const json=(res,status,data)=>{ res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'}); res.end(JSON.stringify(data)); };
   const body=async req=>{
     const chunks=[]; let n=0;
-    for await(const c of req) { n+=c.length; if(n>1500000) throw new Error('Request too large'); chunks.push(c); }
+    for await(const c of req) { n+=c.length; if(n>6000000) throw new Error('Request too large'); chunks.push(c); }
     return JSON.parse(Buffer.concat(chunks).toString() || '{}');
   };
   const authenticated=req=>{
@@ -87,10 +90,26 @@ export function createApp(config) {
         res.flushHeaders(); streams.set(res,{session:auth?.id,expires:auth?.expires}); send(res,'state',publicState());
         req.on('close',()=>streams.delete(res)); return;
       }
+      if(url.pathname.startsWith('/api/social-icons/') && req.method==='GET') {
+        if(!auth&&!readonly)return json(res,401,{error:'Sign in required'});
+        const id=url.pathname.slice('/api/social-icons/'.length);
+        if(!/^[a-f0-9]{32}$/.test(id)||!Object.hasOwn(state.socialIcons,id))return json(res,404,{error:'Icon not found'});
+        res.writeHead(200,{'Content-Type':'image/png'});res.end(Buffer.from(state.socialIcons[id],'base64'));return;
+      }
       if(url.pathname.startsWith('/api/')) {
         if(!auth) return json(res,401,{error:'Sign in required'});
+        if(url.pathname==='/api/social-icons'&&req.method==='GET')return json(res,200,{icons:Object.keys(state.socialIcons).map(id=>({id,referenced:iconReferenced(state,id)}))});
+        if(url.pathname==='/api/social-icons'&&req.method==='POST') {
+          const upload=await body(req),data=validatePNG(upload.data),id=randomUUID().replaceAll('-','');
+          const icons=validateIconRegistry({...state.socialIcons,[id]:data});commit({...state,socialIcons:icons});return json(res,200,{id});
+        }
+        if(url.pathname==='/api/social-icons/delete'&&req.method==='POST') {
+          const {id}=await body(req);if(typeof id!=='string'||!/^[a-f0-9]{32}$/.test(id))throw Error('Invalid icon identifier');
+          if(iconReferenced(state,id))throw Error('Icon is still used by an entry or preset');
+          const icons={...state.socialIcons};delete icons[id];commit({...state,socialIcons:icons});return json(res,200,{ok:true});
+        }
         if(url.pathname==='/api/admin' && req.method==='GET') return json(res,200,{authRequired:config.authRequired,...(config.authRequired?{token:config.token}:{}),presets:Object.keys(state.presets),canUndo:!!state.undo.length});
-        if(url.pathname==='/api/export' && req.method==='GET') { res.setHeader('Content-Disposition','attachment; filename="pawn-control-backup.json"'); return json(res,200,{version:1,settings:settingsOf(state),session:state.session,presets:state.presets}); }
+        if(url.pathname==='/api/export' && req.method==='GET') { res.setHeader('Content-Disposition','attachment; filename="pawn-control-backup.json"'); return json(res,200,{version:1,settings:settingsOf(state),session:state.session,presets:state.presets,socialIcons:state.socialIcons}); }
         if(url.pathname==='/api/action' && req.method==='POST') {
           const action=await body(req); commit(applyAction(state,action));
           if(action.type==='settings' || action.type==='import') void refresh();
@@ -99,7 +118,7 @@ export function createApp(config) {
         if(url.pathname==='/api/refresh' && req.method==='POST') { void refresh(); return json(res,202,{ok:true}); }
         return json(res,404,{error:'Not found'});
       }
-      const files={'/pawn-logo.svg':'pawn-logo.svg','/viewport.mjs':'viewport.mjs','/tips-text.mjs':'tips-text.mjs','/tips-text-controls.mjs':'tips-text-controls.mjs','/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/credits':'credits.html','/credits.mjs':'credits.mjs','/credits-source.mjs':'credits-source.mjs','/bonus-model.mjs':'bonus-model.mjs','/bonus-render.mjs':'bonus-render.mjs','/bonus-controls.mjs':'bonus-controls.mjs','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
+      const files={...Object.fromEntries(['socials-model.mjs','socials-render.mjs','socials-controls.mjs'].map(f=>['/'+f,f])),...Object.fromEntries(Object.keys(PLATFORMS).map(k=>['/social-icons/'+k+'.svg','social-icons/'+k+'.svg'])),'/pawn-logo.svg':'pawn-logo.svg','/viewport.mjs':'viewport.mjs','/tips-text.mjs':'tips-text.mjs','/tips-text-controls.mjs':'tips-text-controls.mjs','/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/credits':'credits.html','/credits.mjs':'credits.mjs','/credits-source.mjs':'credits-source.mjs','/bonus-model.mjs':'bonus-model.mjs','/bonus-render.mjs':'bonus-render.mjs','/bonus-controls.mjs':'bonus-controls.mjs','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
       if(req.method==='GET' && files[url.pathname]) {
         const file=files[url.pathname], ext=file.split('.').pop();
         res.writeHead(200,{'Content-Type':{html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml'}[ext]});

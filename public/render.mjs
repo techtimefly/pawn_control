@@ -1,3 +1,4 @@
+import {createSocials} from './socials-render.mjs';
 import { createTicker } from './ticker.mjs';
 import {createCredits,createTips} from './bonus-render.mjs';
 import { FIELDS, rating, totals, streaks, elapsed, clock, tickerMessages, historyStats,WIDGET_IDS } from './model.mjs';
@@ -36,6 +37,10 @@ export function renderCanvas(canvas,s,{editor=false}={}) {
     else if(id==='tips') {
       if(!wrapper._tips){const content=el('div','tips-content');wrapper.append(content);wrapper._tips=createTips(content);}
       wrapper._tips.update({...s.tips,font:s.tips.font*w.scale},s.tipsPlayback);
+    }
+    else if(id==='socials') {
+      if(!wrapper._socials){const content=el('div','socials-root');wrapper.append(content);wrapper._socials=createSocials(content);}
+      wrapper._socials.update({...s.socials,font:s.socials.font*w.scale},s.socialsPlayback);
     }
     else if(id==='ticker') { renderTicker(wrapper,s); }
     else {
