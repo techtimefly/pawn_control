@@ -10,6 +10,14 @@ test('authenticated actions persist; overlay is read-only; SSE delivers results'
   const post=(path,data,cookie)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(data)});
   try {
     assert.equal((await fetch(base+'/api/state')).status,401);
+    const logo=await fetch(base+'/pawn-logo.svg');
+    assert.equal(logo.status,200);
+    assert.equal(logo.headers.get('content-type'),'image/svg+xml');
+    assert.match(await logo.text(),/<svg[^>]+viewBox="0 0 64 64"/);
+    for(const path of ['/control','/dock','/overlay','/credits']) {
+      const page=await fetch(base+path);assert.equal(page.status,200);
+      assert.match(await page.text(),/<link rel="icon" type="image\/svg\+xml" href="\/pawn-logo.svg">/);
+    }
     for(const path of ['/dock','/dock/','/dock/score','/dock/cta']) {
       const response=await fetch(base+path);assert.equal(response.status,200);assert.match(await response.text(),/Control password/);
     }

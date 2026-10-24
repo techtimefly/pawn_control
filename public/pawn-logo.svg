@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Pawn Control pawn</title>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c3540"/>
+  <g fill="#36c6ed">
+    <circle cx="32" cy="17" r="8"/>
+    <rect x="22" y="26" width="20" height="5" rx="2.5"/>
+    <path d="M26 32h12c0 10 2 15 7 19v1H19v-1c5-4 7-9 7-19Z"/>
+    <rect x="16" y="51" width="32" height="7" rx="3"/>
+  </g>
+</svg>
