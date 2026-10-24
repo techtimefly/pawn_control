@@ -1,4 +1,5 @@
 import { createTicker } from './ticker.mjs';
+import {createRSS} from './rss-render.mjs';
 import {createCredits,createTips} from './bonus-render.mjs';
 import { FIELDS, rating, totals, streaks, elapsed, clock, tickerMessages, historyStats,WIDGET_IDS } from './model.mjs';
 export const el=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; };
@@ -28,7 +29,14 @@ export function renderCanvas(canvas,s,{editor=false}={}) {
     const w=s.widgets[id];
     wrapper.style.cssText=`left:${w.x}px;top:${w.y}px;width:${w.w}px;height:${w.h}px;z-index:${w.z};display:${w.visible?'block':'none'}`;
     wrapper.classList.toggle('position-locked',s.layoutLocked||w.locked);
-    if(id==='credits') {
+    if(id==='rss') {
+      if(!wrapper._rss)wrapper._rss=createRSS(wrapper);
+      wrapper._rss.update(s.rssOutput||{items:[],paused:false,pinned:null,seq:0},s.rss,rgba(s.theme.background,s.rss.opacity));
+    } else if(id==='info'||id==='counters') {
+      wrapper.replaceChildren();const card=el('div','broadcast-card');wrapper.append(card);
+      if(id==='info')card.append(el('h3','',s.info.title),el('p','',s.info.text));
+      else for(const c of s.counters){const row=el('div','stat-row');row.append(el('span','',c.label),el('strong','',c.value));card.append(row);}
+    } else if(id==='credits') {
       if(!wrapper._credits){const content=el('div','credits-content');wrapper.append(content);wrapper._credits=createCredits(content,{autoplay:w.visible});}
       if(w.visible&&!wrapper._wasVisible)wrapper._credits.command('restart');
       wrapper._wasVisible=w.visible;wrapper._credits.update({...s.credits,font:s.credits.font*w.scale,heading:s.credits.heading*w.scale,brandSize:s.credits.brandSize*w.scale,gap:s.credits.gap*w.scale},s.creditsPlayback);

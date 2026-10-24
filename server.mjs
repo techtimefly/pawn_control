@@ -5,31 +5,32 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { Store } from './lib/store.mjs';
-import { applyAction, settingsOf } from './lib/state.mjs';
+import { settingsOf } from './lib/state.mjs';
 import { ChessClient } from './lib/chess.mjs';
+import {migrateStudio,editorState,editStudio,studioAction,exportTemplate,genericState} from './lib/studio.mjs';
+import {refreshFeeds,feedAction,feedOutput} from './lib/feeds.mjs';
 
 const root=dirname(fileURLToPath(import.meta.url));
 const safeEqual=(a,b)=> typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b));
 export function createApp(config) {
   const store=new Store(config.dataDir), sessions=new Map(), streams=new Map(), attempts=new Map();
   const passwordSalt=randomBytes(16), passwordHash=scryptSync(config.password,passwordSalt,32);
-  let state=store.state(config.username);
-  if(!/^[a-zA-Z0-9_-]{2,50}$/.test(state.username) || state.username==='your_chess_username') {
-    store.close(); throw new Error('Set CHESS_USERNAME to your Chess.com username before first startup.');
-  }
-  store.set('state',state);
+  const legacy=store.get('state');
+  const seedUsername=config.username&&config.username!=='your_chess_username'?config.username:'';
+  let studio=store.get('studio:v2')||migrateStudio(legacy||seedUsername?store.state(seedUsername):genericState());
+  store.set('studio:v2',studio); // Original v1 document remains intact for recovery.
+  let state=editorState(studio),revision=0;
   const chess=new ChessClient(store,{fetcher:config.fetcher,agent:config.agent || `PawnControl/1.0 (Chess.com username: ${state.username})`});
   const instance=randomBytes(12).toString('hex');
-  const publicState=()=>({...settingsOf(state),version:1,session:state.session,api:state.api,creditsPlayback:state.creditsPlayback,tipsPlayback:state.tipsPlayback,revision,instance});
-  let revision=0;
+  const view=s=>({...settingsOf(s),version:1,session:s.session,api:s.api,creditsPlayback:s.creditsPlayback,tipsPlayback:s.tipsPlayback,revision,instance});
+  const publicState=(control=false)=>control?{...view(state),studio:{selected:studio.selected,profiles:studio.profiles.map(p=>({id:p.id,name:p.name,shows:p.shows.map(s=>({id:s.id,name:s.name}))})),live:{name:studio.published.name,profileId:studio.published.profileId,showId:studio.published.showId,state:view(studio.published.state)},rssRuntime:studio.rssRuntime}}:{...view(studio.published.state),rssOutput:feedOutput(studio.rssRuntime,studio.published.state.rss)};
   const send=(res,event,data)=>res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  const commit=next=>{
-    store.set('state',next); state=next; revision++;
-    const payload=publicState();
+  const commitStudio=next=>{
+    store.set('studio:v2',next); studio=next;state=editorState(studio); revision++;
     for(const [res,client] of streams) {
       if(client.expires && client.expires<Date.now()) { res.end(); streams.delete(res); continue; }
       if(res.writableLength>2000000) { res.destroy(); streams.delete(res); continue; }
-      send(res,'state',payload);
+      send(res,'state',publicState(client.control));
     }
   };
   const json=(res,status,data)=>{ res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'}); res.end(JSON.stringify(data)); };
@@ -75,28 +76,32 @@ export function createApp(config) {
       }
       if(url.pathname==='/api/state' && req.method==='GET') {
         if(!auth&&!readonly) return json(res,401,{error:'Sign in required'});
-        return json(res,200,publicState());
+        return json(res,200,publicState(!!auth&&!readonly));
       }
       if(url.pathname==='/api/events' && req.method==='GET') {
         if(!auth&&!readonly) return json(res,401,{error:'Sign in required'});
         if(streams.size>=100) return json(res,503,{error:'Too many clients'});
         res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
-        res.flushHeaders(); streams.set(res,{session:auth?.id,expires:auth?.expires}); send(res,'state',publicState());
+        res.flushHeaders(); streams.set(res,{session:auth?.id,expires:auth?.expires,control:!!auth&&!readonly}); send(res,'state',publicState(!!auth&&!readonly));
         req.on('close',()=>streams.delete(res)); return;
       }
       if(url.pathname.startsWith('/api/')) {
         if(!auth) return json(res,401,{error:'Sign in required'});
-        if(url.pathname==='/api/admin' && req.method==='GET') return json(res,200,{token:config.token,presets:Object.keys(state.presets),canUndo:!!state.undo.length});
+        if(url.pathname==='/api/admin' && req.method==='GET') return json(res,200,{token:config.token,presets:Object.keys(state.presets),canUndo:!!studio.published.state.undo.length});
         if(url.pathname==='/api/export' && req.method==='GET') { res.setHeader('Content-Disposition','attachment; filename="pawn-control-backup.json"'); return json(res,200,{version:1,settings:settingsOf(state),session:state.session,presets:state.presets}); }
+        if(url.pathname==='/api/template'&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="creator-template.json"');return json(res,200,exportTemplate(studio));}
+        if(url.pathname==='/api/studio'&&req.method==='POST'){const a=await body(req);commitStudio(studioAction(studio,a));return json(res,200,{ok:true,state:publicState(true)});}
+        if(url.pathname==='/api/rss/refresh'&&req.method==='POST'){void refreshRSS();return json(res,202,{ok:true});}
+        if(url.pathname==='/api/rss/action'&&req.method==='POST'){const a=await body(req);const next=structuredClone(studio);next.rssRuntime=feedAction(next.rssRuntime,a);commitStudio(next);return json(res,200,{ok:true,state:publicState(true)});}
         if(url.pathname==='/api/action' && req.method==='POST') {
-          const action=await body(req); commit(applyAction(state,action));
-          if(action.type==='settings' || action.type==='import') void refresh();
-          return json(res,200,{ok:true,state:publicState()});
+          const action=await body(req); commitStudio(editStudio(studio,action));
+          return json(res,200,{ok:true,state:publicState(true)});
         }
         if(url.pathname==='/api/refresh' && req.method==='POST') { void refresh(); return json(res,202,{ok:true}); }
         return json(res,404,{error:'Not found'});
       }
       const files={'/':'control.html','/control':'control.html','/dock':'control.html','/dock/':'control.html','/dock/score':'control.html','/dock/cta':'control.html','/overlay':'overlay.html','/credits':'credits.html','/credits.mjs':'credits.mjs','/credits-source.mjs':'credits-source.mjs','/bonus-model.mjs':'bonus-model.mjs','/bonus-render.mjs':'bonus-render.mjs','/bonus-controls.mjs':'bonus-controls.mjs','/control.mjs':'control.mjs','/overlay.mjs':'overlay.mjs','/render.mjs':'render.mjs','/ticker.mjs':'ticker.mjs','/model.mjs':'model.mjs','/styles.css':'styles.css'};
+      Object.assign(files,{'/studio-model.mjs':'studio-model.mjs','/studio-controls.mjs':'studio-controls.mjs','/rss-render.mjs':'rss-render.mjs'});
       if(req.method==='GET' && files[url.pathname]) {
         const file=files[url.pathname], ext=file.split('.').pop();
         res.writeHead(200,{'Content-Type':{html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8'}[ext]});
@@ -105,7 +110,17 @@ export function createApp(config) {
       json(res,404,{error:'Not found'});
     } catch(e) { if(!res.headersSent) json(res,400,{error:e.message}); else res.end(); }
   });
-  const refresh=async()=>{ try { await chess.refresh(()=>state,commit); } catch(e) { console.error('API refresh:',e.message); } };
+  const pending=new Set();let closing=false;
+  const task=fn=>{if(closing)return Promise.resolve();const promise=fn();pending.add(promise);promise.finally(()=>pending.delete(promise)).catch(()=>{});return promise;};
+  const refresh=()=>task(async()=>{if(!studio.published.state.username||studio.published.state.username==='your_chess_username')return;const id=studio.published.showId;
+    try { await chess.refresh(()=>studio.published.state,next=>{if(studio.published.showId!==id)return;const copy=structuredClone(studio);copy.published.state=next;const p=copy.profiles.find(p=>p.id===copy.published.profileId),show=p.shows.find(s=>s.id===id);if(p.brand.username===next.username){show.state.api=structuredClone(next.api);show.state.session.baseline=structuredClone(next.session.baseline);}commitStudio(copy);}); } catch(e) { console.error('API refresh:',e.message); } });
+  let rssBusy=false;
+  const refreshRSS=()=>task(async()=>{if(rssBusy)return;rssBusy=true;const id=studio.published.showId,settings=JSON.stringify(studio.published.state.rss),before=structuredClone(studio.rssRuntime);
+    try{const next=await refreshFeeds(before,studio.published.state.rss,config.feedFetcher);if(id!==studio.published.showId||settings!==JSON.stringify(studio.published.state.rss))return;
+      // Preserve approvals and playback commands made while network requests ran.
+      const current=studio.rssRuntime;for(const item of next.items){const old=current.items.find(x=>x.id===item.id);if(old){item.approved=old.approved;item.rejected=old.rejected;}}
+      commitStudio({...studio,rssRuntime:{...next,paused:current.paused,pinned:current.pinned,seq:current.seq}});
+    }finally{rssBusy=false;}});
   const heartbeat=setInterval(()=>{
     const now=Date.now();
     for(const [id,s] of sessions) if(s.expires<now) sessions.delete(id);
@@ -113,11 +128,12 @@ export function createApp(config) {
     for(const [res,c] of streams) if(c.expires && c.expires<now) { res.end(); streams.delete(res); } else res.write(': keepalive\n\n');
   },15000); heartbeat.unref();
   let poll;
-  if(config.poll!==false) { server.on('listening',()=>void refresh()); poll=setInterval(()=>void refresh(),300000); poll.unref(); }
-  return {server,store,getState:()=>state,refresh,close:async()=>{
+  if(config.poll!==false) { server.on('listening',()=>{void refresh();void refreshRSS();}); poll=setInterval(()=>{void refresh();void refreshRSS();},300000); poll.unref(); }
+  return {server,store,getState:()=>state,refresh,refreshRSS,close:async()=>{
+    closing=true;
     clearInterval(heartbeat); clearInterval(poll);
     for(const res of streams.keys()) res.end();
-    await new Promise(resolve=>server.close(resolve)); store.close();
+    await new Promise(resolve=>server.close(resolve));await Promise.allSettled([...pending]); store.close();
   }};
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {

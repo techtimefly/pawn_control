@@ -1,5 +1,6 @@
 import { FIELDS, MODES, PRESETS, defaults, totals, streaks, rating, elapsed, clock, createMessageId,WIDGET_IDS } from './model.mjs';
 import {createBonusControls} from './bonus-controls.mjs';
+import {createStudioControls} from './studio-controls.mjs';
 import { el, renderCanvas, tickCanvas } from './render.mjs';
 const $=id=>document.getElementById(id);
 const dockMode=location.pathname==='/dock'||location.pathname==='/dock/'?'combined':location.pathname==='/dock/score'?'score':location.pathname==='/dock/cta'?'cta':null;
@@ -24,7 +25,7 @@ function action(a) {
   }).catch(e=>{toast(e.message);$('save-state').textContent='Change not saved'; if(state)renderTab();});
   return queue;
 }
-function change(mutator) { return action(()=>{const settings=structuredClone(Object.fromEntries(['username','channel','activeMode','showAvatar','fields','parts','goals','overrides','theme','widgets','layoutLocked','snap','ticker','credits','tips'].map(k=>[k,state[k]])));mutator(settings);return {type:'settings',settings};}); }
+function change(mutator) { return action(()=>{const settings=structuredClone(Object.fromEntries(['username','channel','activeMode','showAvatar','fields','parts','goals','overrides','theme','widgets','layoutLocked','snap','ticker','credits','tips','info','counters','rss'].map(k=>[k,state[k]])));mutator(settings);return {type:'settings',settings};}); }
 function showLogin() { events?.close(); $('app').hidden=true; $('login').hidden=false; }
 async function start() {
   try { state=await api('/api/state'); admin=await api('/api/admin'); }
@@ -62,6 +63,7 @@ function setTab(next) {
 }
 function render(force=false) {
   if(!state)return;
+  studioControls.render(state,force);
   const busy=document.activeElement?.matches('input,textarea,select');
   renderSessionSummary();
   if((!busy||force)&&!dragging)renderTab();
@@ -94,6 +96,7 @@ function inputField(label,type,value,onchange,options={}) {
   wrap.append(input); return wrap;
 }
 function renderSessionSummary() {
+  const state=globalLiveState();
   const t=totals(state.session), total=t.win+t.loss+t.draw, streak=streaks(state.session);
   for(const k of ['win','loss','draw']) { const e=document.querySelector(`[data-score="${k}"]`);if(e)e.textContent=t[k]; }
   $('session-clock').textContent=clock(elapsed(state.session));$('timer').textContent=state.session.runningSince!==null?'Pause timer':state.session.elapsed>0?'Resume timer':'Start timer';
@@ -102,6 +105,7 @@ function renderSessionSummary() {
   for(const [label,value] of [['WIN RATE',total?`${Math.round(t.win/total*100)}%`:'—'],['CURRENT STREAK',streak.label],['GAMES PLAYED',total]]) { const cell=el('div','metric');cell.append(el('span','',label),el('strong','',value));metrics.append(cell); }
 }
 function renderSession() {
+  const state=globalLiveState();
   const host=$('score-controls');host.replaceChildren();const t=totals(state.session);
   for(const [k,label,symbol] of [['win','WINS','↗'],['loss','LOSSES','↘'],['draw','DRAWS','＝']]) {
     const box=el('div',`score-box ${k}`),top=el('div','score-top');top.append(el('span','',label),el('span','',symbol));
@@ -178,7 +182,7 @@ function renderTickerEditor() {
     toggle.classList.add('dock-settings-toggle');toggle.setAttribute('aria-expanded',String(document.body.classList.contains('dock-settings-open')));options.append(toggle);
   }
   options.append(el('p','small-note',`Current mode: ${state.ticker.mode==='scroll'?'Continuous scroll — all enabled messages travel across the ticker.':`Message rotation — one message at a time, changing every ${state.ticker.interval} seconds. Choose Continuous scroll for moving text.`}${state.ticker.paused?' Ticker is paused.':''}`));
-  const defs=[['mode','Display mode','select',{items:[['rotate','Message rotation'],['scroll','Continuous scroll']]}],['interval','Rotation interval (seconds)','number',{min:5,max:300}],['speed','Scroll speed (px / second)','number',{min:20,max:300}],['gap','Separator spacing (px)','number',{min:0,max:300}],['pause','Pause between scroll cycles (seconds)','number',{min:0,max:30}],['direction','Scroll direction','select',{items:[['left','Left'],['right','Right']]}],['font','Font size at 1440p','number',{min:18,max:60}],['opacity','Background opacity (%)','number',{min:0,max:100}],['separator','Message separator','text',{maxlength:12}],['paused','Pause ticker','checkbox',{}]];
+  const defs=[['mode','Display mode','select',{items:[['rotate','Message rotation'],['scroll','Continuous scroll']]}],['interval','Rotation interval (seconds)','number',{min:5,max:300}],['speed','Scroll speed (px / second)','number',{min:20,max:300}],['gap','Separator spacing (px)','number',{min:0,max:300}],['pause','Pause between scroll cycles (seconds)','number',{min:0,max:30}],['direction','Scroll direction','select',{items:[['left','Left'],['right','Right']]}],['font','Font size at 1440p','number',{min:18,max:60}],['opacity','Background opacity (%)','number',{min:0,max:100}],['separator','Message separator','text',{maxlength:12}],['paused','Pause ticker (draft)','checkbox',{}]];
   for(const [key,label,type,opts] of defs)options.append(inputField(label,type,state.ticker[key],v=>change(s=>s.ticker[key]=v),opts));
   options.append(inputField('Show ticker','checkbox',state.widgets.ticker.visible,v=>change(s=>s.widgets.ticker.visible=v)));
   renderTickerPreview();
@@ -242,10 +246,10 @@ for(const [id] of dockTabs)$(id).onkeydown=e=>{
 for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>setTab(b.dataset.tab);
 for(const b of document.querySelectorAll('[data-goto]'))b.onclick=()=>setTab(b.dataset.goto);
 $('refresh').onclick=async()=>{try{await api('/api/refresh',{});toast('Refresh requested. Upstream cache and retry limits still apply.');}catch(e){toast(e.message);}};
-$('undo').onclick=()=>action({type:'undo'});$('timer').onclick=()=>action(()=>({type:'timer',command:state.session.runningSince!==null?'pause':'start'}));
+$('undo').onclick=()=>action({type:'undo'});$('timer').onclick=()=>action(()=>({type:'timer',command:globalLiveState().session.runningSince!==null?'pause':'start'}));
 $('restart-timer').onclick=async()=>{if(await modal('Restart session clock?',[],'Restart from 00:00:00 and keep running. Scores, result history, and streak remain unchanged.'))action({type:'timer',command:'restart'});};
 $('reset').onclick=async()=>{if(await modal('Start a new session?',[],'Scores, streak, and timer return to zero. You can undo this reset.'))action({type:'reset'});};
-$('edit-totals').onclick=async()=>{const t=totals(state.session),values=await modal('Correct session totals',['win','loss','draw'].map(k=>({key:k,label:k,type:'number',value:t[k],min:0,max:10000})),'Corrections change totals; recorded result order and streak stay intact.');if(values)action({type:'totals',totals:values});};
+$('edit-totals').onclick=async()=>{const t=totals(globalLiveState().session),values=await modal('Correct session totals',['win','loss','draw'].map(k=>({key:k,label:k,type:'number',value:t[k],min:0,max:10000})),'Corrections change totals; recorded result order and streak stay intact.');if(values)action({type:'totals',totals:values});};
 $('active-mode').onchange=e=>change(s=>s.activeMode=e.target.value);
 $('show-fields').onclick=()=>change(s=>s.fields.forEach(f=>f.visible=true));$('hide-fields').onclick=()=>change(s=>s.fields.forEach(f=>f.visible=false));
 $('lock-layout').onclick=()=>change(s=>s.layoutLocked=!s.layoutLocked);$('snap').onchange=e=>change(s=>s.snap=e.target.checked);
@@ -286,6 +290,8 @@ editor.addEventListener('pointerdown',e=>{
   widget.addEventListener('pointermove',move);widget.addEventListener('pointerup',finish);widget.addEventListener('pointercancel',cancel);
 });
 const bonusControls=createBonusControls({getState:()=>state,change,action,button,inputField});
+function globalLiveState(){return state?.studio?.live.state||state;}
+const studioControls=createStudioControls({getState:()=>state,change,action,api,accept,button,inputField,modal,toast,afterQueue:fn=>{queue=queue.catch(()=>{}).then(async()=>{await fn();admin=await api('/api/admin');renderAdmin();}).catch(e=>toast(e.message));return queue;}});
 new ResizeObserver(resizePreviews).observe(document.querySelector('.desk'));window.addEventListener('resize',resizePreviews);
-setInterval(()=>{if(state){$('session-clock').textContent=clock(elapsed(state.session));for(const id of ['card-preview','editor-canvas'])tickCanvas($(id),state);}},1000);
+setInterval(()=>{if(state){$('session-clock').textContent=clock(elapsed(globalLiveState().session));for(const id of ['card-preview','editor-canvas'])tickCanvas($(id),state);}},1000);
 void start();

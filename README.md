@@ -1,6 +1,35 @@
-# Pawn Control
+# Pawn Control — Creator Studio
 
-A self-hosted chess broadcast desk for **twitch.tv/jamespawn**, pulling public Chess.com data for a configurable player. Designed for a Proxmox LXC on your LAN and a **2560 × 1440 OBS base canvas**, downscaled to 1920 × 1080.
+A local-first broadcast controller with brand profiles, named show setups, an explicit draft/live boundary, optional Chess.com widgets, information cards, manual counters and an RSS Feed Ticker. One published output is active at a time.
+
+## Creator Studio workflow
+
+- **Brand profiles** own the profile name, Chess.com identity (optional), channel handle and theme. **Shows** own layouts, content, presets and saved session state. New generic profiles require no Chess.com username and make no chess requests. New/duplicated shows and profiles start with fresh sessions and zero counters.
+- Use the Creator Studio panel to create, duplicate, rename and select profiles/shows. Settings, layouts, content and imports save to the selected draft. Browsing or editing a different show does not change the broadcast.
+- **Take Live** publishes the selected show after an explicit confirmation. Existing `/overlay?token=...` and `/credits?token=...` URLs follow the published snapshot, even when a logged-in controller opens them. Controller cookies and read-only tokens remain separate.
+- Scores, timers, credits/tips playback, counter +/- and explicitly labeled live CTA/RSS playback controls act immediately on the **LIVE** show named at the top. Session controls display the live session. CTA pause in the settings editor is a draft setting; the separate Pause/Resume CTA live button is immediate.
+- Information cards and labeled counters are configured in Creator Studio and positioned in Layout studio. Counter values persist per show; the chess session reset controls reset the chess score/timer, not manual counters.
+- The first output format remains **landscape 2560 × 1440**, with the existing 1080p preview/downscale. A separate output-format selector and independently authored vertical layouts are deferred. There is no stretched vertical output.
+
+## RSS Feed Ticker
+
+Configure up to ten HTTP/HTTPS RSS or Atom feeds per show, with source labels, enabled flags and ordering. Choose automatic approval or an approval queue, optional publication time, comma-separated include keywords (any match), age limit, rotation/scrolling, interval, speed, font and opacity. Use Layout studio to position the separate RSS widget. Feed configuration is staged until Take Live.
+
+The server refreshes the published show's feeds every five minutes; **Refresh feeds** requests a check. The live queue supports Approve, Reject, Pause, Resume, Skip, Pin and Unpin. Queue approvals and cached items persist per show across publishing switches and restarts. A new refresh updates the pending list without replacing the current headline or restarting its clock. Skip/Pin are intentional immediate changes. A story that expires or is rejected during display finishes its current display interval before disappearing. Pinned stories continue while eligible. Playback clocks are local to each overlay and restart when that source reloads.
+
+Titles are deduplicated case-insensitively across feeds. Missing publication dates use first fetch time for age limits; dates more than five minutes in the future are excluded. Fetch failures keep eligible cached stories and show stale/error status only in the controller. Approval changes made during a refresh are preserved; results from an old published configuration are discarded.
+
+RSS fetching is server-side, uses standard HTTP/HTTPS ports only, rejects credentials and non-public IP addresses (including mixed DNS responses), pins the validated address for the connection, and revalidates redirects. Limits: ten seconds including DNS/redirects, four requests in a redirect chain, 1 MiB per response, 1,000 parsed items and XML depth 32. DTDs/entities are rejected, no external resources are resolved, and display text uses textContent. Compressed responses and XML encodings other than UTF-8 are not supported. Feeds needing cookies, API keys or authentication are out of scope. Tests use mocked feeds; no external subscriptions are created.
+
+## Migration, templates and backups
+
+On first upgrade, the existing `state` document is copied into `studio:v2` inside the existing SQLite database. The original document is retained, including presets, undo and session data. The migrated show is initially both selected and published; new widgets start hidden. Subsequent writes atomically replace the studio document. `.env`, credentials and existing API caches are untouched. Keep a consistent backup of the data directory and `.env` before upgrading. Returning to the old code reads the preserved pre-upgrade state, not changes subsequently made in Creator Studio.
+
+**Export profile template** includes all shows for the selected brand, with personal names, handles and free-form content replaced by placeholders. It excludes credentials, API cache, session/undo history, feed URLs and counter values. Import validates the format, drops unknown nested properties and feed URLs, and creates a new draft brand without modifying the live output. This conservative format deliberately requires the recipient to fill in content and feed URLs.
+
+**Settings → Export backup** retains the selected show's exact settings, presets and session, excluding credentials/API cache. Import replaces that selected draft only; Take Live is still required. For a complete backup of every brand, show and feed queue, back up the SQLite data directory consistently as described below.
+
+The existing widgets, authentication, OBS dock routes and dedicated credits source remain available. No cloud accounts, marketplace, platform API integrations or multitenant hosting are included.
 
 ## Quick start
 
@@ -11,7 +40,7 @@ git clone git@github.com:techtimefly/pawn_control.git
 cd pawn_control
 npm run setup
 # Save the generated login password; setup creates .env with unique credentials.
-# Edit .env and set CHESS_USERNAME to your Chess.com username.
+# Optionally set CHESS_USERNAME for a chess profile.
 npm start
 ```
 
@@ -19,7 +48,7 @@ Open `http://CONTAINER-IP:3000/control` and sign in. Copy the read-only OBS URL 
 
 Alternatively, copy `.env.example` to `.env` and set CONTROL_PASSWORD (16+ characters) and OVERLAY_TOKEN (24+ characters). Setup never overwrites an existing `.env`.
 
-Set `CHESS_USERNAME` in the untracked `.env` for the first startup. It seeds a new database only. After that, the saved username in Settings takes precedence; changing the environment variable does not overwrite an existing player or session. A missing/placeholder username blocks first startup rather than fetching a sample account. Keep personal values out of `.env.example`.
+Set `CHESS_USERNAME` in the untracked `.env` for the first startup. It seeds a new database only. After that, the saved username in Settings takes precedence; changing the environment variable does not overwrite an existing player or session. A missing/placeholder username creates a generic profile and makes no Chess.com requests. Keep personal values out of `.env.example`.
 
 For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and allow TCP 3000 from your streaming PC. No Twitch credentials or Chess.com API key are needed. This app does not connect to Twitch chat.
 
@@ -41,14 +70,14 @@ Set deployment values in the untracked `.env` before first startup:
 | --- | --- |
 | `CONTROL_PASSWORD` | Control/dock login; 16–1024 characters. No uppercase, digit, or symbol rule. Example values beginning with `replace-` are rejected. |
 | `OVERLAY_TOKEN` | Read-only overlay access; at least 24 characters. Example values beginning with `replace-` are rejected. |
-| `CHESS_USERNAME` | Your Chess.com username; required for a fresh database. Subsequent account changes use Settings. |
+| `CHESS_USERNAME` | Optional Chess.com username; leave blank for a generic brand. Subsequent account changes use Settings. |
 | `HOST` | `127.0.0.1` for local-only use; `0.0.0.0` for access from your streaming PC. |
 | `PORT` | Listening port; defaults to `3000`. |
 | `DATA_DIR` | `./data` for local use; **`/var/lib/pawn-control` for the supplied systemd service**. |
 | `COOKIE_SECURE` | `false` for plain LAN HTTP; set `true` when accessing the app through HTTPS. |
 | `CHESS_USER_AGENT` | Optional API identification header; the example uses `PawnControl/1.0`. |
 
-`npm run setup` generates a random 24-character control password and a 64-character overlay token, saves them in `.env`, and prints the control password. It never overwrites an existing `.env` or silently rotates credentials on service startup. Set the username and deployment-specific HOST/DATA_DIR afterward. No Chess.com API key, Twitch login, or external database service is required.
+`npm run setup` generates a random 24-character control password and a 64-character overlay token, saves them in `.env`, and prints the control password. It never overwrites an existing `.env` or silently rotates credentials on service startup. Optionally set the username and set deployment-specific HOST/DATA_DIR afterward. No Chess.com API key, Twitch login, or external database service is required.
 
 ## Included
 
@@ -71,7 +100,7 @@ Set deployment values in the untracked `.env` before first startup:
 5. In **CTA ticker**, add/edit/reorder messages, enable the ones to show, and choose scrolling or rotation. Pause ticker freezes movement; Show ticker controls visibility. In a compact CTA dock, expand **Ticker settings** for advanced options. Text/settings save when a control changes; finish a text edit by leaving its field.
 6. For in-OBS control, use the combined `/dock` page described below. Add `/overlay?token=...` as the on-stream Browser Source; controller/dock pages are private controls and should not be used as broadcast sources.
 
-Changes propagate to connected clients automatically and are saved in SQLite. Refresh stats checks Chess.com; it never adds results to your manual session.
+Draft changes are saved in SQLite; Take Live publishes structural edits to overlay clients. Routine live controls propagate immediately. Refresh stats checks Chess.com; it never adds results to your manual session.
 
 ## Session rules
 
@@ -87,7 +116,7 @@ Session scores, streak, best session streak, session win rate, and session resul
 - Ratings: startup, then a five-minute scheduler, respecting upstream freshness and conditional requests.
 - Current-month archive: fetched only when a historical stat is enabled. Also fetch the previous month for a recent sample across a month boundary.
 - Requests are serial, timeout after 15 seconds, use ETag/Last-Modified validators, and back off on errors/429. “Refresh now” requests a check but cannot bypass upstream caching or retry backoff.
-- Local scores, visibility, layout, and ticker changes propagate immediately.
+- Live scores and playback commands propagate immediately. Visibility, layout and ticker settings are staged until Take Live.
 - API failures retain the last good values. The control panel distinguishes last check, last successful response, rating game timestamp, and errors. No sample ratings are presented as live data.
 - Optional manual rating overrides are clearly labeled in the panel and removed with “Use API”. Session rating deltas use one baseline per time control; if no rating exists at session start, the first available rating establishes the baseline.
 - Historical metrics use up to the last 50 completed standard-chess games in the current and previous UTC months, filtered to the active time control. They are not lifetime statistics. Accuracy averages include only games with accuracy and show coverage. Opening labels are taken from available archive ECO data.
@@ -173,7 +202,7 @@ ss -tlnp | grep ':3000'
 
 Expected health response: `{"ok":true}`. Replace port 3000 above if you configured another port. Then open `http://CONTAINER-IP:3000/control` from the streaming PC. For ordinary code updates, pull and restart; reload the control panel/dock and refresh the OBS Browser Source to load changed frontend modules. Copy/reload the service unit when its configuration changes, as shown above. Preserve `.env` and DATA_DIR; do not rerun first-time setup to upgrade.
 
-Optional container image: `docker compose up -d --build` after configuring `.env` with real credentials and CHESS_USERNAME. Keep PORT=3000 for the supplied `3000:3000` mapping, or adjust the mapping to match. Compose sets HOST=0.0.0.0 and DATA_DIR=/app/data; a named volume holds SQLite data. The image uses Node 24. This deployment does not use the systemd unit.
+Optional container image: `docker compose up -d --build` after configuring `.env` with real credentials and an optional CHESS_USERNAME. Keep PORT=3000 for the supplied `3000:3000` mapping, or adjust the mapping to match. Compose sets HOST=0.0.0.0 and DATA_DIR=/app/data; a named volume holds SQLite data. The image uses Node 24. This deployment does not use the systemd unit.
 
 ### Startup troubleshooting
 
@@ -242,7 +271,7 @@ Advanced Scene Switcher can activate your ending scene normally; no control-pane
 
 **Play live**, **Pause live**, **Restart live**, and **Hide live** affect currently connected credits sources, including the main overlay credits widget when enabled. Play resumes a paused run or replays a completed run. Restart begins from the top. A newly loaded dedicated source autoplays, independently of an earlier hide or pause command, unless OBS has reported it inactive. While inactive, live dock commands cannot start that source; the next activation always restarts it. The dedicated source works even when the main overlay credits widget is hidden.
 
-The editor has separate **local preview** controls: opening the editor and playing its preview do not start credits on live sources. Settings edits are shared live, so finish editing before airing the ending scene.
+The editor has separate **local preview** controls: opening the editor and playing its preview do not start credits on live sources. Settings edits are staged until Take Live.
 
 ### Chess tips
 

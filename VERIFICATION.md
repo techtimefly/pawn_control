@@ -1,43 +1,23 @@
-# Verification
+# Verification — Creator Studio branch
 
-Verified locally on Windows with Node.js 24.19.0, October 23, 2026.
+Verified on LV426 on October 24, 2026 with Node.js 24.19.0 from the bundled Codex runtime. The default PATH Node is 22.22.3 and was not used for validation.
 
 ## Automated checks
 
-`node --test`: **29 tests passed**. Covers ordered session results, streaks, draws, corrections, nonnegative totals, reset/undo, validation, layout backup round trips, historical aggregates, missing ticker values, API cache validators, 429 backoff, serial fetching, year-boundary archives, authentication, cross-origin rejection, read-only token restrictions, SSE delivery, SQLite persistence across restart, ticker timing/pause/scroll calculations, HTTP-compatible CTA IDs, explicit timer commands, and dock routes.
+- Full `node --test`: **45 passed, 0 failed** (29 existing tests plus 16 new tests).
+- `node --check` on every tracked/new JavaScript module: passed.
+- `git -c core.whitespace=cr-at-eol diff --check`: passed (repository contains mixed LF/CRLF files).
+- HTTP integration checks exercise login, cross-origin rejection, controller-only mutations, token read-only access, new static module routes, SSE and restart persistence.
+- New regressions cover preserved legacy state/presets/session/undo, idempotent database migration, isolated profiles/shows, shared brand identity, explicit publishing, live actions during draft browsing, optional chess without network requests, portable template sanitization and validation, and queue persistence across show switching/restart.
+- RSS fixtures exercise RSS/Atom plain text, malformed/DTD/entity/size/depth rejection, IPv4/IPv6 and alternate IP spellings, private/mixed DNS answers, pinned transport destinations, redirect validation/limits, DNS/response timeouts, deduplication, keyword/age filtering, manual/automatic approval, rejection persistence, missing dates, stale cache retention, pause/skip/pin and uninterrupted headline timing.
+- HTTP race tests exercise approval/rejection/pause while a fetch is pending, publishing another show during a fetch, and discarding stale results without overwriting the new output.
 
-## Browser checks
+The initial sandboxed suite could not connect to its loopback test server (`EACCES`); rerunning with approved loopback access passed. No external RSS feed or Chess.com account is needed by the tests. Test databases use temporary directories and are cleaned up.
 
-- Signed in to the private control panel.
-- Pulled real Chess.com stats for the configured player at initial verification time. Neither that personal username nor the returned ratings are hardcoded into the application.
-- Recorded wins, a loss, and a draw; confirmed session totals, win rate, result history, and streak updates.
-- Moved the stats widget from X=2070/Y=70 to X=1860/Y=260 by dragging and confirmed saved coordinates.
-- Resized the card from 430×390 to 520×480 by its corner handle.
-- Enabled the scoreboard, locked the layout, and switched between native and downscaled output previews.
-- Applied Minimal and Session visibility presets and verified updated fields.
-- Switched the CTA ticker from rotation to scrolling and confirmed substituted messages.
-- Opened the read-only overlay in a separate browser view and confirmed new scores propagated immediately.
-- Confirmed overlay canvas dimensions 2560×1440, transparent body background, and zero interactive controls.
-- No errors/warnings in the final control-panel and overlay browser consoles.
+## Unrun checks and limitations
 
-## Deployment checks still needed
+Browser QA was attempted through the available browser automation tool; it reported no apps or browsers (`apps: [], browsers: []`). Consequently this branch has not had visual/browser interaction QA, narrow dock QA, or browser console verification. The HTTP and pure playback tests do not replace those checks. Before use, verify profile create/duplicate/switch, draft edits, cancelled/repeated Take Live, reload/reconnect, information/counter rendering, RSS scrolling/rotation and approval controls in a real browser.
 
-Combined dock follow-up: `/dock` was browser-verified with one sign-in, Score/CTA switching in the same page, and selected-tab restoration after refresh. It shares one authenticated event connection, exposes connection status and sign-out, and retains the separate dock URLs. The combined route is included in the existing HTTP/auth integration checks.
+Real OBS, scene activation, transparency/readability, LAN/proxy behavior, Docker and Linux service deployment were not run. No deployment or external publication was performed. Previous branch browser/OBS-related notes are historical and are not a verification of this branch.
 
-Dock/timer follow-up: verified Score and CTA pages in browser views at 380 px width, password login, starting/pausing/restarting the clock, preserved scores/history after restart, and adding an additional CTA. Both dock consoles were free of errors/warnings. OBS embedding itself remains a deployment-side check.
-
-Ticker follow-up: replaced the interval/Web Animations implementation with an elapsed-time renderer and repeated scrolling content. A browser fixture verified rotation at a two-second interval and moving scroll text while receiving state updates every 250 milliseconds. Pause held the same text and transform across observations; resume and hide/show restored visible motion without console errors. Actual OBS verification is still required on the streaming PC.
-
-The project has not been installed on the user's Proxmox host. Verify the Linux systemd service, LAN firewall/DNS, persistent directory permissions, and actual OBS Browser Source rendering on the streaming PC after deployment. Docker configuration is supplied but was not executed here. API archive edge cases are tested with fixtures; historical aggregates depend on whatever public archive data Chess.com provides.
-
-Preview screenshots contain disposable local test-session results. The shipped project starts with a new zero-score session and contains no preview database or credentials.
-
-
-## Credits and tips branch
-
-The 26-test suite additionally covers legacy database/settings/preset migration, old backup import, credits duration and speed calculations, play-once/loop behavior, isolated playback timelines, tip navigation/shuffle/pause, new input validation, static module routes, and read-only token restrictions for playback commands.
-
-Browser checks verified the four-tab dock with one login; dedicated credits autoplay; live pause and restart; independent local preview playback while the live source stayed paused; held final message; and tip Next/Pause/Resume controls. A five-second disposable configuration was used for timing checks. Real OBS scene activation and Advanced Scene Switcher integration still require verification on the streaming PC.
-
-
-OBS activation fix: three additional regression tests simulate per-source activation events and exercise the real credits timeline. They verify inactive reset, restart on reactivation, duplicate-event handling, activation before settings arrive, suppression of off-air dock commands, active pause/resume, source independence, and browser-only autoplay. The full 29-test suite passes; the new module is also served by the HTTP integration test. Event name/payload were checked against the official obsproject/obs-browser documentation and implementation. Actual OBS scene switching remains a streaming-PC verification step.
+Independent landscape/vertical layouts and an output-format selector are deferred. This branch retains one 2560 × 1440 landscape output and the existing 1080p preview. RSS playback clocks restart on source reload and are local to each source. Feed support is bounded UTF-8 RSS/Atom over standard HTTP/HTTPS; compressed/authenticated feeds are unsupported.

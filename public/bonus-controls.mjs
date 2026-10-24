@@ -9,7 +9,7 @@ export function createBonusControls({getState,change,action,button,inputField}) 
     $(`credits-preview-${cmd}`).onclick=()=>creditsPreview.command(cmd);
   }
   for(const cmd of ['previous','next'])$(`tips-${cmd}`).onclick=()=>action({type:'tips-playback',command:cmd,currentId:$('tips-preview').dataset.tipId});
-  $('tips-pause').onclick=()=>action({type:'tips-playback',command:getState().tipsPlayback.paused?'play':'pause'});
+  $('tips-pause').onclick=()=>action({type:'tips-playback',command:(getState().studio?.live.state||getState()).tipsPlayback.paused?'play':'pause'});
   $('credits-add-section').onclick=()=>change(s=>s.credits.sections.push({id:createMessageId(),title:'New section',enabled:true,entries:[]}));
   $('tips-add').onclick=()=>change(s=>s.tips.items.push({id:createMessageId(),title:'New tip',category:'Chess tip',text:'Write your chess tip here.',enabled:true}));
   const textField=(label,value,save,max=400)=>inputField(label,'text',value,save,{maxlength:max});
@@ -53,7 +53,7 @@ export function createBonusControls({getState,change,action,button,inputField}) 
       item.append(controls,textField('Title',tip.title,v=>change(s=>tipIn(s).title=v),120),textField('Category',tip.category,v=>change(s=>tipIn(s).category=v),60));
       const label=node('label','','Tip'),text=node('textarea','');text.value=tip.text;text.maxLength=600;text.onchange=()=>change(s=>tipIn(s).text=text.value);label.append(text);item.append(label);host.append(item);
     });
-    $('tips-pause').textContent=state.tipsPlayback.paused?'Resume tips':'Pause tips';tipsPreview.update(t,state.tipsPlayback);resize();
+    $('tips-pause').textContent=(state.studio?.live.state||state).tipsPlayback.paused?'Resume tips live':'Pause tips live';tipsPreview.update(t,state.tipsPlayback);resize();
   }
   function resize(){const shell=$('credits-preview').parentElement;if(shell.clientWidth)$('credits-preview').style.transform=`scale(${shell.clientWidth/2560})`;}
   return {render(tab){if(tab==='credits')renderCredits();if(tab==='tips')renderTips();},resize};
