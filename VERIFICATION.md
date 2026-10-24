@@ -4,7 +4,7 @@ Verified locally on Windows with Node.js 24.19.0, October 23, 2026.
 
 ## Automated checks
 
-`node --test`: **29 tests passed**. Covers ordered session results, streaks, draws, corrections, nonnegative totals, reset/undo, validation, layout backup round trips, historical aggregates, missing ticker values, API cache validators, 429 backoff, serial fetching, year-boundary archives, authentication, cross-origin rejection, read-only token restrictions, SSE delivery, SQLite persistence across restart, ticker timing/pause/scroll calculations, HTTP-compatible CTA IDs, explicit timer commands, and dock routes.
+`node --test`: **32 tests passed**. Covers ordered session results, streaks, draws, corrections, nonnegative totals, reset/undo, validation, layout backup round trips, historical aggregates, missing ticker values, API cache validators, 429 backoff, serial fetching, year-boundary archives, authentication, cross-origin rejection, read-only token restrictions, SSE delivery, SQLite persistence across restart, ticker timing/pause/scroll calculations, HTTP-compatible CTA IDs, explicit timer commands, and dock routes.
 
 ## Browser checks
 
@@ -41,3 +41,10 @@ Browser checks verified the four-tab dock with one login; dedicated credits auto
 
 
 OBS activation fix: three additional regression tests simulate per-source activation events and exercise the real credits timeline. They verify inactive reset, restart on reactivation, duplicate-event handling, activation before settings arrive, suppression of off-air dock commands, active pause/resume, source independence, and browser-only autoplay. The full 29-test suite passes; the new module is also served by the HTTP integration test. Event name/payload were checked against the official obsproject/obs-browser documentation and implementation. Actual OBS scene switching remains a streaming-PC verification step.
+
+
+## Optional authentication
+
+October 24, 2026: all 32 tests pass. New authentication tests cover strict AUTH_REQUIRED parsing and default behavior, conditional credential validation, token-free reads and SSE, password-free control actions, retained cross-origin/JSON/input checks, and returning to protected mode with expired pre-restart cookies and preserved results. Existing protected-mode tests still verify read-only tokens cannot write.
+
+Browser checks verified a password-free combined dock with an authentication-disabled indicator and hidden Sign out, score recording, token-free overlay and credits rendering, clean source URLs in Settings, and a protected dock that still requires login and shows Sign out after authentication. The open control panel had no console warnings or errors. Disposable previews used loopback addresses and contain no production data. LXC/Compose deployment and real OBS embedding remain host-side verification steps.

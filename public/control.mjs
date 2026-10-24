@@ -202,8 +202,15 @@ function renderSettings() {
 }
 function renderAdmin() {
   $('undo').disabled=!admin.canUndo;
-  if(admin.token)$('overlay-url').value=`${location.origin}/overlay?token=${encodeURIComponent(admin.token)}`;
-  if(admin.token)$('credits-url').value=`${location.origin}/credits?token=${encodeURIComponent(admin.token)}`;
+  const required=admin.authRequired!==false;
+  $('logout').hidden=!required;$('dock-logout').hidden=!required;$('dock-auth-status').hidden=required;
+  $('auth-status').textContent=required?'Authentication enabled: controls require login; sources use read-only tokens.':'Authentication disabled: anyone who can reach this app can view data and change controls.';
+  const query=required&&admin.token?`?token=${encodeURIComponent(admin.token)}`:'';
+  $('overlay-url').value=`${location.origin}/overlay${query}`;
+  $('credits-url').value=`${location.origin}/credits${query}`;
+  for(const [field,reveal] of [['overlay-url','reveal-url'],['credits-url','reveal-credits-url']]){
+    $(reveal).hidden=!required;if(!required)$(field).type='text';
+  }
   const select=$('layout-presets');select.replaceChildren();const first=el('option','','Load preset…');first.value='';select.append(first);
   for(const name of admin.presets||[]) { const o=el('option','',name);o.value=name;select.append(o); }
 }

@@ -15,9 +15,9 @@ npm run setup
 npm start
 ```
 
-Open `http://CONTAINER-IP:3000/control` and sign in. Copy the read-only OBS URL from Settings into an OBS Browser Source, width **2560**, height **1440**. Keep the source at native size. The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
+Open `http://CONTAINER-IP:3000/control` and sign in (unless AUTH_REQUIRED=false). Copy the read-only OBS URL from Settings into an OBS Browser Source, width **2560**, height **1440**. Keep the source at native size. The overlay has a transparent background. For uninterrupted updates, leave “Shutdown source when not visible” disabled.
 
-Alternatively, copy `.env.example` to `.env` and set CONTROL_PASSWORD (16+ characters) and OVERLAY_TOKEN (24+ characters). Setup never overwrites an existing `.env`.
+Alternatively, copy `.env.example` to `.env` and set CONTROL_PASSWORD (16+ characters) and OVERLAY_TOKEN (24+ characters), or explicitly set AUTH_REQUIRED=false for trusted LAN use. Setup never overwrites an existing `.env`.
 
 Set `CHESS_USERNAME` in the untracked `.env` for the first startup. It seeds a new database only. After that, the saved username in Settings takes precedence; changing the environment variable does not overwrite an existing player or session. A missing/placeholder username blocks first startup rather than fetching a sample account. Keep personal values out of `.env.example`.
 
@@ -39,8 +39,9 @@ Set deployment values in the untracked `.env` before first startup:
 
 | Variable | Purpose / requirement |
 | --- | --- |
-| `CONTROL_PASSWORD` | Control/dock login; 16–1024 characters. No uppercase, digit, or symbol rule. Example values beginning with `replace-` are rejected. |
-| `OVERLAY_TOKEN` | Read-only overlay access; at least 24 characters. Example values beginning with `replace-` are rejected. |
+| `AUTH_REQUIRED` | `true` (default) requires control login and source tokens; `false` disables both. Only exact lowercase `true` or `false` is accepted; an empty or invalid value fails startup. |
+| `CONTROL_PASSWORD` | Required only with AUTH_REQUIRED=true. Control/dock login; 16–1024 characters. No uppercase, digit, or symbol rule. Example values beginning with `replace-` are rejected. |
+| `OVERLAY_TOKEN` | Required only with AUTH_REQUIRED=true. Read-only overlay/credits access; at least 24 characters. Example values beginning with `replace-` are rejected. |
 | `CHESS_USERNAME` | Your Chess.com username; required for a fresh database. Subsequent account changes use Settings. |
 | `HOST` | `127.0.0.1` for local-only use; `0.0.0.0` for access from your streaming PC. |
 | `PORT` | Listening port; defaults to `3000`. |
@@ -48,7 +49,35 @@ Set deployment values in the untracked `.env` before first startup:
 | `COOKIE_SECURE` | `false` for plain LAN HTTP; set `true` when accessing the app through HTTPS. |
 | `CHESS_USER_AGENT` | Optional API identification header; the example uses `PawnControl/1.0`. |
 
-`npm run setup` generates a random 24-character control password and a 64-character overlay token, saves them in `.env`, and prints the control password. It never overwrites an existing `.env` or silently rotates credentials on service startup. Set the username and deployment-specific HOST/DATA_DIR afterward. No Chess.com API key, Twitch login, or external database service is required.
+`npm run setup` writes AUTH_REQUIRED=true and generates a random 24-character control password and a 64-character overlay token, saves them in `.env`, and prints the control password. It never overwrites an existing `.env` or silently rotates credentials on service startup. Set the username and deployment-specific HOST/DATA_DIR afterward. No Chess.com API key, Twitch login, or external database service is required.
+
+## Optional authentication for a trusted LAN
+
+| Setting | Control panel and OBS docks | Overlay and credits sources |
+| --- | --- | --- |
+| `AUTH_REQUIRED=true` (default) | Password login required | Read-only URL token required |
+| `AUTH_REQUIRED=false` | Opens without login | Clean URLs; no token required |
+
+Password-free mode was confirmed working by the deployment owner on October 24, 2026.
+
+Authentication is enabled by default, including for existing deployments that omit AUTH_REQUIRED. To open controls, docks, overlays, and credits without credentials, edit the untracked `.env`:
+
+```dotenv
+AUTH_REQUIRED=false
+```
+
+Restart the app/service (or recreate the Compose container). CONTROL_PASSWORD and OVERLAY_TOKEN can be omitted or left unchanged in this mode; they are ignored. The control panel and all dock pages open immediately, sign-out buttons are hidden, and Settings and the dock identify that authentication is disabled. Copy the clean Browser Source URLs from the UI:
+
+- `http://CONTAINER-IP:3000/overlay`
+- `http://CONTAINER-IP:3000/credits`
+
+Anyone who can reach this deployment can view stream data, edit settings/scores, control playback, and export/import backups. Use this mode only on a trusted LAN or behind your own access controls. JSON request validation and cross-origin POST rejection remain enabled. AUTH_REQUIRED is deployment configuration, not an editable web setting or part of settings backups.
+
+For a first-time installation without generated credentials, copy `.env.example` to `.env`, set AUTH_REQUIRED=false and CHESS_USERNAME, then configure HOST and DATA_DIR for your deployment. Existing placeholder password/token values are ignored in this mode. Setup continues to generate credentials with authentication enabled by default.
+
+For LXC, edit `/opt/pawn_control/.env` and run `systemctl restart pawn-control`; the supplied service already reads that file. For Docker Compose, edit `.env` and run `docker compose up -d --force-recreate` so the new environment is loaded. No service-file or port-mapping change is needed. After restarting, reload the control panel and OBS docks, then copy the clean source URLs into OBS and refresh those Browser Sources.
+
+To re-enable authentication, set AUTH_REQUIRED=true, supply a valid CONTROL_PASSWORD and OVERLAY_TOKEN, and restart/recreate again. Refresh the panel/docks and replace token-free OBS URLs with the full URLs from Settings/Credits. All prior login sessions are invalid after restart; session results and layouts stay saved. Blank, misspelled, or other AUTH_REQUIRED values fail startup rather than disabling authentication.
 
 ## Included
 
@@ -60,16 +89,16 @@ Set deployment values in the untracked `.env` before first startup:
 - Ticker with editable/reorderable messages, enabled flags, scrolling or rotation, speed, direction, timing, pause, dynamic values, and appearance controls.
 - Chess.com ratings, personal bests, profile/avatar, goals, rating deltas, cached completed-game history, recent form, color win rates, average opponent rating, opening and ending summaries, accuracy coverage, and Puzzle Rush best when available.
 - Instant updates to connected overlays through server-sent events (SSE), automatic reconnection, SQLite persistence, settings export/import, and local session history.
-- Password-protected control API and separate read-only overlay token. The overlay URL does not embed control credentials, and its token cannot authorize control actions.
+- Authentication enabled by default: password-protected control API and separate read-only overlay token. The overlay URL does not embed control credentials, and its token cannot authorize control actions.
 
 ## Using the control panel
 
-1. Open `/control` and sign in with CONTROL_PASSWORD. In **Settings**, confirm the player/channel and copy the complete token-bearing OBS overlay URL.
+1. Open `/control` and sign in with CONTROL_PASSWORD when authentication is enabled. In **Settings**, confirm the player/channel and copy the complete OBS overlay URL (token-bearing when authentication is enabled).
 2. In **Layout studio**, enable the widgets you want, drag/resize them, or enter exact coordinates. Use **Lock layout** to prevent accidental dragging. **Save preset** stores a reusable layout; it does not reset scores.
 3. In **Stats & visibility**, choose visible rows and their order, the active time control, rating goals, and any manual rating overrides. The active time control controls the highlight and time-control-dependent metrics.
 4. In **Session**, record each win/loss/draw. Use Undo for mistakes, Correct totals for count adjustments, and history edits when a result was recorded incorrectly. Start/pause/resume the clock or use Restart timer without clearing results. Reset session starts a new zero-score session.
 5. In **CTA ticker**, add/edit/reorder messages, enable the ones to show, and choose scrolling or rotation. Pause ticker freezes movement; Show ticker controls visibility. In a compact CTA dock, expand **Ticker settings** for advanced options. Text/settings save when a control changes; finish a text edit by leaving its field.
-6. For in-OBS control, use the combined `/dock` page described below. Add `/overlay?token=...` as the on-stream Browser Source; controller/dock pages are private controls and should not be used as broadcast sources.
+6. For in-OBS control, use the combined `/dock` page described below. Use the overlay URL from Settings as the on-stream Browser Source (`/overlay` in open mode); controller/dock pages should not be used as broadcast sources.
 
 Changes propagate to connected clients automatically and are saved in SQLite. Refresh stats checks Chess.com; it never adds results to your manual session.
 
@@ -127,6 +156,7 @@ git clone git@github.com:techtimefly/pawn_control.git /opt/pawn_control
 cp /opt/pawn_control/.env.example /opt/pawn_control/.env
 # Edit /opt/pawn_control/.env with a 16+ character password, 24+ character token,
 # and HOST=0.0.0.0. Generate random credentials with your password manager.
+# For trusted LAN use without credentials, set AUTH_REQUIRED=false instead.
 # Set CHESS_USERNAME to your Chess.com username before first startup.
 # Set DATA_DIR=/var/lib/pawn-control.
 chown -R pawn:pawn /var/lib/pawn-control
@@ -181,7 +211,7 @@ Optional container image: `docker compose up -d --build` after configuring `.env
 - `203/EXEC` and `Unable to locate executable '/usr/bin/node'`: Node is missing at the configured path. Check `command -v node`, install Node 24+ system-wide if necessary, or update `ExecStart` to the real system-wide executable. This error happens before application code runs.
 - After correcting the unit/runtime, use `systemctl daemon-reload`, `systemctl reset-failed pawn-control`, `systemctl restart pawn-control`, then `journalctl -u pawn-control -n 50 --no-pager`.
 - An error trying to create `/opt/pawn_control/data` under the hardened service: set `.env` DATA_DIR to `/var/lib/pawn-control`, not `./data`, and restart.
-- Password/token startup rejection: check the length requirements above and replace example credentials. Do not paste `.env` into logs or support messages.
+- Password/token startup rejection with AUTH_REQUIRED=true: check the length requirements above and replace example credentials. Do not paste `.env` into logs or support messages.
 - A black OBS source: verify the full token-bearing overlay URL, source dimensions 2560×1440, and visibility settings. If that exact URL works in a browser on the streaming PC but OBS stays black, restart OBS and check its browser-source logs if necessary.
 - CTA additions on plain HTTP are supported; if an older UI still reports `crypto.randomUUID is not a function`, update the checkout and hard-refresh the control panel/dock.
 
@@ -191,7 +221,7 @@ Optional container image: `docker compose up -d --build` after configuring `.env
 
 ### Secrets and Git
 
-Commit `.env.example` with placeholders, never the real `.env`. The two application secrets are CONTROL_PASSWORD and OVERLAY_TOKEN. Generate them on the LXC with `npm run setup`, or supply them through the service environment. Chess.com public data needs no API key, and the Twitch channel link needs no Twitch token. Keep SSH deployment keys outside the project and never put them in browser code. If GitHub Actions deployment is added, store deployment credentials in GitHub Actions secrets, not repository files.
+Commit `.env.example` with placeholders, never the real `.env`. With authentication enabled, the two application secrets are CONTROL_PASSWORD and OVERLAY_TOKEN. Generate them on the LXC with `npm run setup`, or supply them through the service environment. Chess.com public data needs no API key, and the Twitch channel link needs no Twitch token. Keep SSH deployment keys outside the project and never put them in browser code. If GitHub Actions deployment is added, store deployment credentials in GitHub Actions secrets, not repository files.
 
 The ignore rules exclude `.env` variants (except `.env.example`), runtime data, databases, logs, and common private-key files. The Docker build context excludes these too. Ignore rules do not remove already tracked secrets; if a real credential is ever committed, rotate it and remove it from history as appropriate. Application files live at the repository root; development preview data and credentials must remain outside the repository.
 
@@ -212,7 +242,7 @@ Tests exercise session/streak rules, undo/reset, validation, ticker substitution
 
 ## OBS browser docks
 
-Recommended: add **`http://CONTAINER-IP:3000/dock`** once for a combined dock with **Score / CTA / Credits / Tips** tabs and a single login. Switching tabs stays on the same page and authenticated connection. The selected tab is remembered in that browser across refreshes when local storage is available. The header shows connection status and a Sign out button. The session still expires normally after 12 hours. Separate dock URLs remain available below.
+Recommended: add **`http://CONTAINER-IP:3000/dock`** once for a combined dock with **Score / CTA / Credits / Tips** tabs and a single login when authentication is enabled. With AUTH_REQUIRED=false no login is needed. Switching tabs stays on the same page and connection. The selected tab is remembered in that browser across refreshes when local storage is available. The header shows connection status, plus Sign out when authentication is enabled or an authentication-disabled indicator otherwise. With authentication enabled, the session expires normally after 12 hours. Separate dock URLs remain available below.
 
 Add these URLs in **OBS → Docks → Custom Browser Docks** (replace CONTAINER-IP):
 
@@ -222,7 +252,7 @@ Add these URLs in **OBS → Docks → Custom Browser Docks** (replace CONTAINER-
 | Score | `http://CONTAINER-IP:3000/dock/score` | W/L/D, plus/minus, undo, corrections, reset, result history, and start/pause/restart clock |
 | CTA | `http://CONTAINER-IP:3000/dock/cta` | Add/edit/reorder/enable messages, pause/show ticker, scrolling/rotation and appearance settings |
 
-Sign in with your control password inside OBS. These are private controller pages, not on-stream Browser Sources; do not use the read-only overlay token. Both docks share saved state with the main control panel and overlay, and retain their dock mode when refreshed. Start with a width around 360–420 px and resize as needed. Dock links are also available in the main Settings page. Continue using `/overlay?token=...` for the on-stream overlay.
+Sign in with your control password inside OBS when authentication is enabled. These are controller pages, not on-stream Browser Sources; do not use the read-only overlay token. Both docks share saved state with the main control panel and overlay, and retain their dock mode when refreshed. Start with a width around 360–420 px and resize as needed. Dock links are also available in the main Settings page. Continue using `/overlay?token=...` for the on-stream overlay, or `/overlay` with AUTH_REQUIRED=false.
 
 
 ## End credits and chess tips
@@ -232,7 +262,7 @@ Both widgets start hidden on the main overlay. Enable them in their editors or L
 ### End credits Browser Source
 
 1. Open **End credits** in the control panel, or **Credits** in the combined OBS dock. Edit, reorder, and enable sections and entries. The initial editable template uses the supplied hardware/software example; review it before broadcasting.
-2. Copy the dedicated **credits Browser Source URL** from that page. It is `/credits?token=YOUR_OVERLAY_TOKEN`; keep it private just like the overlay URL.
+2. Copy the dedicated **credits Browser Source URL** from that page. With authentication enabled it is `/credits?token=YOUR_OVERLAY_TOKEN`; keep it private just like the overlay URL. With AUTH_REQUIRED=false it is simply `/credits`.
 3. Add it as a Browser Source to your ending scene, at **2560 x 1440**. The source restarts automatically on OBS source activation and stops/resets on deactivation. Keep **Refresh browser when scene becomes active** enabled as a reload fallback.
 4. Credits automatically scroll on page load. The default is a 60-second run followed by a held final message. Choose a total duration or scroll speed, optional looping, font sizes, spacing, colors, and background opacity in Credits settings.
 
