@@ -7,6 +7,8 @@ A self-hosted chess broadcast desk for **twitch.tv/jamespawn**, pulling public C
 Requires **Node.js 24 LTS** (includes built-in SQLite). No npm packages or build step.
 
 ```sh
+git clone git@github.com:techtimefly/pawn_control.git
+cd pawn_control
 npm run setup
 # Save the generated login password; setup creates .env with unique credentials.
 # Edit .env and set CHESS_USERNAME to your Chess.com username.
@@ -21,6 +23,33 @@ Set `CHESS_USERNAME` in the untracked `.env` for the first startup. It seeds a n
 
 For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and allow TCP 3000 from your streaming PC. No Twitch credentials or Chess.com API key are needed. This app does not connect to Twitch chat.
 
+## Requirements and configuration
+
+| Requirement | Details |
+| --- | --- |
+| Runtime | Node.js 24+ with built-in SQLite; Node 24 LTS is recommended. npm is used for the provided scripts; `npm install` is not needed. |
+| Repository access | Git and permission to clone this private repository; the documented SSH URL requires GitHub SSH authentication. |
+| LXC service | Debian/Ubuntu with systemd, a `pawn` service user, and Node executable by that user outside `/root`. `curl` is used for the health checks below. |
+| Optional Docker deployment | Docker Engine and the Docker Compose plugin; the image includes Node, so the host does not need a separate Node installation. |
+| Networking | Outbound HTTPS to `api.chess.com`; streaming PC access to the configured container port (3000 by default). |
+| Browser/OBS | A modern browser for controls and OBS Browser Source support; custom browser docks for the controller dock pages. |
+| Canvas | OBS Browser Source width 2560, height 1440; OBS may downscale output to 1920 × 1080. |
+
+Set deployment values in the untracked `.env` before first startup:
+
+| Variable | Purpose / requirement |
+| --- | --- |
+| `CONTROL_PASSWORD` | Control/dock login; 16–1024 characters. No uppercase, digit, or symbol rule. Example values beginning with `replace-` are rejected. |
+| `OVERLAY_TOKEN` | Read-only overlay access; at least 24 characters. Example values beginning with `replace-` are rejected. |
+| `CHESS_USERNAME` | Your Chess.com username; required for a fresh database. Subsequent account changes use Settings. |
+| `HOST` | `127.0.0.1` for local-only use; `0.0.0.0` for access from your streaming PC. |
+| `PORT` | Listening port; defaults to `3000`. |
+| `DATA_DIR` | `./data` for local use; **`/var/lib/pawn-control` for the supplied systemd service**. |
+| `COOKIE_SECURE` | `false` for plain LAN HTTP; set `true` when accessing the app through HTTPS. |
+| `CHESS_USER_AGENT` | Optional API identification header; the example uses `PawnControl/1.0`. |
+
+`npm run setup` generates a random 24-character control password and a 64-character overlay token, saves them in `.env`, and prints the control password. It never overwrites an existing `.env` or silently rotates credentials on service startup. Set the username and deployment-specific HOST/DATA_DIR afterward. No Chess.com API key, Twitch login, or external database service is required.
+
 ## Included
 
 - Reference-inspired charcoal stats card with cyan username, aligned rating rows, and orange streak badge.
@@ -31,13 +60,26 @@ For a local preview, keep HOST=127.0.0.1. For LXC access, set HOST=0.0.0.0 and a
 - Ticker with editable/reorderable messages, enabled flags, scrolling or rotation, speed, direction, timing, pause, dynamic values, and appearance controls.
 - Chess.com ratings, personal bests, profile/avatar, goals, rating deltas, cached completed-game history, recent form, color win rates, average opponent rating, opening and ending summaries, accuracy coverage, and Puzzle Rush best when available.
 - Instant updates to connected overlays through server-sent events (SSE), automatic reconnection, SQLite persistence, settings export/import, and local session history.
-- Password-protected control API and separate read-only overlay token. Overlay clients never receive the control password or session cookie.
+- Password-protected control API and separate read-only overlay token. The overlay URL does not embed control credentials, and its token cannot authorize control actions.
+
+## Using the control panel
+
+1. Open `/control` and sign in with CONTROL_PASSWORD. In **Settings**, confirm the player/channel and copy the complete token-bearing OBS overlay URL.
+2. In **Layout studio**, enable the widgets you want, drag/resize them, or enter exact coordinates. Use **Lock layout** to prevent accidental dragging. **Save preset** stores a reusable layout; it does not reset scores.
+3. In **Stats & visibility**, choose visible rows and their order, the active time control, rating goals, and any manual rating overrides. The active time control controls the highlight and time-control-dependent metrics.
+4. In **Session**, record each win/loss/draw. Use Undo for mistakes, Correct totals for count adjustments, and history edits when a result was recorded incorrectly. Start/pause/resume the clock or use Restart timer without clearing results. Reset session starts a new zero-score session.
+5. In **CTA ticker**, add/edit/reorder messages, enable the ones to show, and choose scrolling or rotation. Pause ticker freezes movement; Show ticker controls visibility. In a compact CTA dock, expand **Ticker settings** for advanced options. Text/settings save when a control changes; finish a text edit by leaving its field.
+6. For in-OBS control, use the combined `/dock` page described below. Add `/overlay?token=...` as the on-stream Browser Source; controller/dock pages are private controls and should not be used as broadcast sources.
+
+Changes propagate to connected clients automatically and are saved in SQLite. Refresh stats checks Chess.com; it never adds results to your manual session.
 
 ## Session rules
 
 The session clock has separate Start/Resume, Pause, and Restart controls. Restart returns only the clock to `00:00:00` and starts it immediately; scores, streak, and game history stay intact. Reset session still clears the entire session. Timer actions synchronize between the main panel and OBS docks.
 
 “Record win/loss/draw” and clicking a score append an ordered result. The minus button removes the latest matching result (or reduces a positive manual correction). Editing history recalculates streak. A draw breaks a win/loss streak. Direct total corrections do not fabricate chronological results; streak derives only from recorded results. Win rate is wins / (wins + losses + draws). Recent session results show the last ten ordered entries. Undo restores the previous session, including a reset. New sessions start at zero and snapshot available ratings. Session timer starts paused; start it when going live.
+
+Session scores, streak, best session streak, session win rate, and session results are **manual stream-session statistics**, not imported from Chess.com. Empty values (`—`) or `0W` are expected before you record games. Saved sessions survive app restarts. A running clock measures elapsed wall time, including time while the app is stopped; pause it when ending a stream if you want to resume the same session later.
 
 ## API refresh and data meaning
 
@@ -96,7 +138,17 @@ systemctl enable --now pawn-control
 systemctl status pawn-control
 ```
 
-The unit remains named `pawn-control.service`, and persistent data stays at `/var/lib/pawn-control`. `StateDirectory=pawn-control` creates that directory at service startup with ownership for `pawn`, before filesystem sandboxing is applied. Only the checkout path uses the underscore. `WorkingDirectory`, `EnvironmentFile`, and `ExecStart` all point to `/opt/pawn_control`. The service defaults DATA_DIR to `/var/lib/pawn-control`; keep that value in `.env` too, since EnvironmentFile values take precedence.
+The unit remains named `pawn-control.service`, and persistent data stays at `/var/lib/pawn-control`. `StateDirectory=pawn-control` creates that directory at service startup with ownership for `pawn`, before filesystem sandboxing is applied. Only the checkout path uses the underscore. `WorkingDirectory` and `EnvironmentFile` use `/opt/pawn_control`; `ExecStart` invokes `/usr/bin/node` with `/opt/pawn_control/server.mjs`. The service defaults DATA_DIR to `/var/lib/pawn-control`; keep that value in `.env` too, since EnvironmentFile values take precedence. A different DATA_DIR also requires updating the unit's writable-directory settings and permissions.
+
+If Node is installed at a different system-wide path, prefer a persistent override so future service-file updates do not undo it. Run `systemctl edit pawn-control` and enter, for example:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/local/bin/pawn-node /opt/pawn_control/server.mjs
+```
+
+Use the actual executable path on your machine. Do not point it at `/root/.nvm/...` or symlink into `/root`. An independently installed/copied executable such as `/usr/local/bin/pawn-node` must be executable by `pawn`; check with `runuser -u pawn -- /usr/local/bin/pawn-node --version`. If using a copied binary, update that copy when upgrading Node. Drop-ins under `/etc/systemd/system/pawn-control.service.d/` survive replacement of the main unit file.
 
 For an existing installation already at `/opt/pawn_control`, update the installed service after pulling:
 
@@ -112,13 +164,26 @@ If your checkout is elsewhere, adjust all three service paths before installing 
 
 The service uses `/usr/bin/node`; adjust ExecStart if your Node installation differs. Logs: `journalctl -u pawn-control -f`. Health: `curl http://127.0.0.1:3000/health`. Keep LAN access restricted to trusted devices. For remote use, prefer your VPN. HTTP passwords are visible to observers on the network; use a TLS reverse proxy if the LAN is not trusted. Set COOKIE_SECURE=true when serving through HTTPS. A proxy must forward SSE without buffering and permit long-lived connections.
 
-Optional container image: `docker compose up -d --build` after configuring `.env` with HOST=0.0.0.0. The volume holds SQLite data; the image uses Node 24.
+After starting or updating, allow Node to finish initializing and verify readiness rather than relying only on systemd's immediate "active" status:
+
+```sh
+curl --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/health
+ss -tlnp | grep ':3000'
+```
+
+Expected health response: `{"ok":true}`. Replace port 3000 above if you configured another port. Then open `http://CONTAINER-IP:3000/control` from the streaming PC. For ordinary code updates, pull and restart; reload the control panel/dock and refresh the OBS Browser Source to load changed frontend modules. Copy/reload the service unit when its configuration changes, as shown above. Preserve `.env` and DATA_DIR; do not rerun first-time setup to upgrade.
+
+Optional container image: `docker compose up -d --build` after configuring `.env` with real credentials and CHESS_USERNAME. Keep PORT=3000 for the supplied `3000:3000` mapping, or adjust the mapping to match. Compose sets HOST=0.0.0.0 and DATA_DIR=/app/data; a named volume holds SQLite data. The image uses Node 24. This deployment does not use the systemd unit.
 
 ### Startup troubleshooting
 
 - `226/NAMESPACE` mentioning a missing `/var/lib/pawn-control`: update the installed unit to the version with `StateDirectory=pawn-control`, then reload systemd. For older units, create it with `install -d -o pawn -g pawn -m 0750 /var/lib/pawn-control`.
 - `203/EXEC` and `Unable to locate executable '/usr/bin/node'`: Node is missing at the configured path. Check `command -v node`, install Node 24+ system-wide if necessary, or update `ExecStart` to the real system-wide executable. This error happens before application code runs.
 - After correcting the unit/runtime, use `systemctl daemon-reload`, `systemctl reset-failed pawn-control`, `systemctl restart pawn-control`, then `journalctl -u pawn-control -n 50 --no-pager`.
+- An error trying to create `/opt/pawn_control/data` under the hardened service: set `.env` DATA_DIR to `/var/lib/pawn-control`, not `./data`, and restart.
+- Password/token startup rejection: check the length requirements above and replace example credentials. Do not paste `.env` into logs or support messages.
+- A black OBS source: verify the full token-bearing overlay URL, source dimensions 2560×1440, and visibility settings. If that exact URL works in a browser on the streaming PC but OBS stays black, restart OBS and check its browser-source logs if necessary.
+- CTA additions on plain HTTP are supported; if an older UI still reports `crypto.randomUUID is not a function`, update the checkout and hard-refresh the control panel/dock.
 
 `StateDirectory` behavior is documented in [systemd.exec](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#RuntimeDirectory=).
 
